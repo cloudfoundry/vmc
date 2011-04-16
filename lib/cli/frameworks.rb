@@ -13,7 +13,7 @@ module VMC::Cli
       'JavaWeb'  => ['spring',  { :mem => '512M', :description => 'Java Web Application'}],
       'Sinatra'  => ['sinatra', { :mem => '128M', :description => 'Sinatra Application'}],
       'Node'     => ['node',    { :mem => '64M',  :description => 'Node.js Application'}],
-      'Erlang'   => ['erlang',  { :mem => '64M',  :description => 'Erlang Web Application'}]
+      'Erlang/OTP Rebar' => ['otp_rebar',  { :mem => '64M',  :description => 'Erlang/OTP Rebar Application'}]
     }
 
     class << self
@@ -71,8 +71,10 @@ module VMC::Cli
             if File.exist?('app.js') || File.exist?('index.js') || File.exist?('main.js')
               return Framework.lookup('Node')
             end
-          elsif !Dir.glob('ebin/*.app').empty?
-            return Framework.lookup('Erlang')
+            
+          # Erlang/OTP using Rebar
+          elsif !Dir.glob('releases/*/*.rel').empty? && !Dir.glob('releases/*/*.boot').empty?
+            return Framework.lookup('Erlang/OTP Rebar')
           end
         end
         nil
