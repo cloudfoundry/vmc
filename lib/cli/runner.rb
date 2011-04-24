@@ -286,7 +286,7 @@ class VMC::Cli::Runner
       set_cmd(:apps, :crashlogs, 1)
 
     when 'push'
-      usage('vmc push [appname] [--path PATH] [--url URL] [--instances N] [--mem] [--no-start]')
+      usage('vmc push [appname] [--path PATH] [--url URL] [--instances N] [--mem] [--runtime RUNTIME] [--no-start]')
       if @args.size == 1
         set_cmd(:apps, :push, 1)
       else
