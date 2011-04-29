@@ -11,6 +11,7 @@
 
 require 'rubygems'
 require 'json/pure'
+require 'net/ssh/gateway'
 
 require File.expand_path('../const', __FILE__)
 
@@ -20,7 +21,7 @@ class VMC::Client
     VMC::VERSION
   end
 
-  attr_reader   :target, :host, :user, :proxy, :auth_token
+  attr_reader   :target, :host, :user, :proxy, :auth_token, :port
   attr_accessor :trace
 
   # Error codes
@@ -35,11 +36,37 @@ class VMC::Client
   class HTTPException <  RuntimeError; end
 
   # Initialize new client to the target_uri with optional auth_token
-  def initialize(target_url=VMC::DEFAULT_TARGET, auth_token=nil)
+  def initialize(target_url=VMC::DEFAULT_TARGET, auth_token=nil, options={})
+    if options[:tunnel_host]
+      ssh_opts = {}
+      unless options[:tunnel_password] == true
+        ssh_opts[:password] = options[:tunnel_password]
+      end
+      @tunnel = Net::SSH::Gateway.new(options[:tunnel_host],
+                                      options[:tunnel_user],
+                                      ssh_opts)
+      @port = @tunnel.open("127.0.0.1",
+                           get_port(target_url),
+                           options[:tunnel_port])
+    end
     target_url = "http://#{target_url}" unless /^https?/ =~ target_url
     target_url = target_url.gsub(/\/+$/, '')
-    @target =  target_url
+    target_url = set_port(target_url, @port) if @port
+    @target = target_url
     @auth_token = auth_token
+  rescue Net::SSH::HostKeyMismatch => e
+    raise VMC::Cli::CliExit, "ssh key mismatch: #{e.message}"
+  rescue Net::SSH::AuthenticationFailed => e
+    raise VMC::Cli::CliExit, "ssh authentication error for user '%s' on '%s'" % [options[:tunnel_user], options[:tunnel_host]]
+  rescue Errno::EACCES => e
+    msg = "can't bind to port #{options[:tunnel_port]}"
+    msg += "\neither add --tunnel-port to pick another port, or run with privileges"
+    if RUBY_PLATFORM =~ /(cygwin|mingw)/
+      # TODO add message apropriate for Windows
+    else
+      msg += "\nsudo #{$0} #{ARGV.join(" ")}"
+    end
+    raise VMC::Cli::CliExit, msg
   end
 
   ######################################################
@@ -430,6 +457,26 @@ class VMC::Client
 
   def check_login_status
     raise AuthError unless @user || logged_in?
+  end
+
+  # extract port from url
+  def get_port(url)
+    if url =~ /:(\d+)/
+      port = $1
+    elsif url =~ /^https/
+      443
+    else
+      80
+    end
+  end
+
+  def set_port(url, port)
+    if url =~ /:\d+/
+      url = url.gsub(/:\d+/, ":#{port}")
+    else
+      url += ":#{port}"
+    end
+    url
   end
 
 end
