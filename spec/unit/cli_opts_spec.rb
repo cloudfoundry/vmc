@@ -5,8 +5,6 @@ describe 'VMC::Cli::Runner' do
   it 'should parse email and password correctly' do
     args = "--email derek@gmail.com --password foo"
     cli = VMC::Cli::Runner.new(args.split).parse_options!
-    cli.options.should have(3).items
-    cli.options.should have_key :email
     cli.options[:email].should == 'derek@gmail.com'
     cli.options[:password].should == 'foo'
   end
@@ -70,4 +68,19 @@ describe 'VMC::Cli::Runner' do
     cli.options[:all].should be_true
   end
 
+  it "should parse tunnel options correctly" do
+    args = "--tunnel-host 1.2.3.4 --tunnel-user user --tunnel-password pass --tunnel-port 1234"
+    cli = VMC::Cli::Runner.new(args.split).parse_options!
+    cli.options[:tunnel_host].should == "1.2.3.4"
+    cli.options[:tunnel_user].should == "user"
+    cli.options[:tunnel_password].should == "pass"
+    cli.options[:tunnel_port].should == "1234"
+  end
+
+  it "should get default tunnel options correctly" do
+    args = ""
+    cli = VMC::Cli::Runner.new(args.split).parse_options!
+    cli.options[:tunnel_user].should == "vcap"
+    cli.options[:tunnel_port].should == 80
+  end
 end

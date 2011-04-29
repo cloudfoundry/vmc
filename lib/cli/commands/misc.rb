@@ -5,6 +5,18 @@ module VMC::Cli::Command
       say "vmc #{VMC::Cli::VERSION}"
     end
 
+    def tunnel(target)
+
+      # @options[:tunnel_host]
+      say("tunnel to #{target} open for http://*.vcap.me:#{client.port}".green)
+      say("Control-C to exit...")
+      while true
+        sleep 5
+      end
+    rescue Interrupt => e
+      puts "\nclosing tunnel..."
+    end
+
     def target
       return display JSON.pretty_generate({:target => target_url}) if @options[:json]
       banner "[#{target_url}]"
@@ -27,7 +39,7 @@ module VMC::Cli::Command
     def set_target(target_url)
       target_url = "http://#{target_url}" unless /^https?/ =~ target_url
       target_url = target_url.gsub(/\/+$/, '')
-      client = VMC::Client.new(target_url)
+      client = VMC::Client.new(target_url, nil, @options)
       unless client.target_valid?
         if prompt_ok
           display "Host is not valid: '#{target_url}'".red
