@@ -7,6 +7,7 @@ module VMC::Cli
 
     FRAMEWORKS = {
       'Rails'    => ['rails3',  { :mem => '256M', :description => 'Rails Application'}],
+      'Rack'     => ['rack',    { :mem => '64M',  :description => 'Rack Application'}],
       'Spring'   => ['spring',  { :mem => '512M', :description => 'Java SpringSource Spring Application'}],
       'Grails'   => ['grails',  { :mem => '512M', :description => 'Java SpringSource Grails Application'}],
       'Roo'      => ['spring',  { :mem => '512M', :description => 'Java SpringSource Roo Application'}],
@@ -48,7 +49,10 @@ module VMC::Cli
             else
               return Framework.lookup('JavaWeb')
             end
-
+          
+          # rack apps
+          elsif File.exist?('config.ru') && File.exist?('Gemfile')
+            return Framework.lookup('Rack')
           # Simple Ruby Apps
           elsif !Dir.glob('*.rb').empty?
             matched_file = nil
