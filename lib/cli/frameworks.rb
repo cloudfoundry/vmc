@@ -13,7 +13,8 @@ module VMC::Cli
       'JavaWeb'  => ['spring',  { :mem => '512M', :description => 'Java Web Application'}],
       'Sinatra'  => ['sinatra', { :mem => '128M', :description => 'Sinatra Application'}],
       'Node'     => ['node',    { :mem => '64M',  :description => 'Node.js Application'}],
-      'Erlang/OTP Rebar' => ['otp_rebar',  { :mem => '64M',  :description => 'Erlang/OTP Rebar Application'}]
+      'Erlang/OTP Rebar' => ['otp_rebar',  { :mem => '64M',  :description => 'Erlang/OTP Rebar Application'}],
+      'Wsgi'     => ['wsgi',    { :mem => '64M',  :description => 'Python WSGI Application'}],
     }
 
     class << self
@@ -75,6 +76,11 @@ module VMC::Cli
           # Erlang/OTP using Rebar
           elsif !Dir.glob('releases/*/*.rel').empty? && !Dir.glob('releases/*/*.boot').empty?
             return Framework.lookup('Erlang/OTP Rebar')
+
+          # Python
+          elsif !Dir.glob('*.py').empty?
+            return Framework.lookup('Wsgi')
+
           end
         end
         nil
