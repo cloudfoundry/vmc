@@ -8,6 +8,7 @@ module VMC::Cli
     FRAMEWORKS = {
       'Rails'    => ['rails3',  { :mem => '256M', :description => 'Rails Application'}],
       'Rack'     => ['rack',    { :mem => '64M',  :description => 'Rack Application'}],
+      'Lua'      => ['lua',     { :mem => '64M',  :description => 'Lua Application'}],
       'Spring'   => ['spring',  { :mem => '512M', :description => 'Java SpringSource Spring Application'}],
       'Grails'   => ['grails',  { :mem => '512M', :description => 'Java SpringSource Grails Application'}],
       'Roo'      => ['spring',  { :mem => '512M', :description => 'Java SpringSource Roo Application'}],
@@ -53,6 +54,8 @@ module VMC::Cli
           # rack apps
           elsif File.exist?('config.ru') && File.exist?('Gemfile')
             return Framework.lookup('Rack')
+          elsif ! Dir.glob("**/*.{lua,ws}").empty?
+            return Framework.lookup('Lua')
           # Simple Ruby Apps
           elsif !Dir.glob('*.rb').empty?
             matched_file = nil
