@@ -8,7 +8,7 @@ module VMC::Cli
     FRAMEWORKS = {
       'Rails'    => ['rails3',  { :mem => '256M', :description => 'Rails Application'}],
       'Rack'     => ['rack',    { :mem => '64M',  :description => 'Rack Application'}],
-      'Lua'      => ['lua',     { :mem => '64M',  :description => 'Lua Application'}],
+      'Luajit'   => ['luajit',  { :mem => '64M',  :description => 'Luajit WSAPI Application'}],
       'Spring'   => ['spring',  { :mem => '512M', :description => 'Java SpringSource Spring Application'}],
       'Grails'   => ['grails',  { :mem => '512M', :description => 'Java SpringSource Grails Application'}],
       'Roo'      => ['spring',  { :mem => '512M', :description => 'Java SpringSource Roo Application'}],
