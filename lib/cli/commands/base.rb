@@ -29,7 +29,7 @@ module VMC::Cli
 
       def client
         return @client if @client
-        @client = VMC::Client.new(target_url, auth_token)
+        @client = VMC::Client.new(target_url, auth_token, @options)
         @client.trace = VMC::Cli::Config.trace if VMC::Cli::Config.trace
         @client.proxy_for @options[:proxy] if @options[:proxy]
         @client

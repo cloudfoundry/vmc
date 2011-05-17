@@ -1,5 +1,6 @@
 
 require 'optparse'
+require 'highline/import'
 
 require File.dirname(__FILE__) + '/usage'
 
@@ -50,6 +51,16 @@ class VMC::Cli::Runner
 
       opts.on('-q', '--quiet')     {         @options[:quiet] = true }
 
+      # tunnel options
+      opts.on('--tunnel-host HOST') { |thost| @options[:tunnel_host] = thost }
+      opts.on('--tunnel-user USER') { |tuser| @options[:tunnel_user] = tuser }
+      opts.on('--tunnel-port [PORT]') do |tport|
+        @options[:tunnel_port] = tport.nil? ? nil : tport
+      end
+      opts.on('--tunnel-password [PASSWORD]') do |tpass|
+        @options[:tunnel_password] = tpass.nil? ? true : tpass
+      end
+
       # Don't use builtin zip
       opts.on('--no-zip')          {         @options[:nozip] = true }
       opts.on('--nozip')           {         @options[:nozip] = true }
@@ -89,7 +100,15 @@ class VMC::Cli::Runner
     @args = opts_parser.parse!(@args)
     @args.concat instances_delta_arg
     convert_options!
+
+    set_option_default(:tunnel_port, 80)
+    set_option_default(:tunnel_user, "vcap")
+
     self
+  end
+
+  def set_option_default(name, value)
+    @options[name] = value unless @options.has_key?(name)
   end
 
   def check_instances_delta!
@@ -104,9 +123,14 @@ class VMC::Cli::Runner
     exit
   end
 
+  def option_to_integer(name)
+    @options[name] = Integer(@options[name]) if @options[name]
+  end
+
   def convert_options!
     # make sure certain options are valid and in correct form.
-    @options[:instances] = Integer(@options[:instances]) if @options[:instances]
+    option_to_integer(:instances)
+    option_to_integer(:instance)
   end
 
   def set_cmd(namespace, action, args_range=0)
@@ -343,6 +367,12 @@ class VMC::Cli::Runner
       usage('vmc clone-services <src-app> <dest-app>')
       set_cmd(:services, :clone_services, 2)
 
+    when 'tunnel'
+      usage('vmc tunnel <target>')
+      set_cmd(:misc, :tunnel, 1)
+      # nasty hack to set argument as an option
+      @options[:tunnel_host] = @args[0]
+
     when 'aliases'
       usage('vmc aliases')
       set_cmd(:misc, :aliases)
@@ -406,8 +436,7 @@ class VMC::Cli::Runner
 
   def run
 
-    trap('TERM') { print "\nInterrupted\n"; exit(false)}
-    trap('INT')  { print "\nInterrupted\n"; exit(false)}
+    trap('TERM') { print "\nTerminated\n"; exit(false)}
 
     parse_options!
 
@@ -420,6 +449,11 @@ class VMC::Cli::Runner
 
     process_aliases!
     parse_command!
+
+    # only ask for password if --tunnel-password was used without an argument
+    if @options[:tunnel_host] && @options[:tunnel_password].nil?
+      @options[:tunnel_password] = ask("Tunnel password: ") { |q| q.echo = "*" }
+    end
 
     if @namespace && @action
       eval("VMC::Cli::Command::#{@namespace.to_s.capitalize}").new(@options).send(@action.to_sym, *@args)
@@ -462,6 +496,9 @@ class VMC::Cli::Runner
   rescue SyntaxError => e
     puts e.message.red
     puts e.backtrace
+    @exit_status = false
+  rescue Interrupt => e
+    say("\nInterrupted".red)
     @exit_status = false
   rescue => e
     puts e.message.red

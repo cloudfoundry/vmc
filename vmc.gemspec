@@ -21,6 +21,7 @@ spec = Gem::Specification.new do |s|
   s.add_dependency "highline", "~> 1.6.1"
   s.add_dependency "rest-client", ">= 1.6.1", "< 1.7.0"
   s.add_dependency "terminal-table", "~> 1.4.2"
+  s.add_dependency "net-ssh-gateway", ">= 1.0.1"
 
   s.add_development_dependency "rake"
   s.add_development_dependency "rspec",   "~> 1.3.0"
