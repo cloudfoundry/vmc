@@ -202,6 +202,10 @@ class VMC::Cli::Runner
     when 'delete-user', 'delete_user', 'unregister'
       usage('vmc delete-user <user>')
       set_cmd(:admin, :delete_user, 1)
+      
+    when 'users'
+      usage('vmc users')
+      set_cmd(:admin, :users)
 
     when 'apps'
       usage('vmc apps')
