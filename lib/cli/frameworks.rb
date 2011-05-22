@@ -15,6 +15,7 @@ module VMC::Cli
       'Node'     => ['node',    { :mem => '64M',  :description => 'Node.js Application'}],
       'Erlang/OTP Rebar' => ['otp_rebar',  { :mem => '64M',  :description => 'Erlang/OTP Rebar Application'}],
       'Wsgi'     => ['wsgi',    { :mem => '64M',  :description => 'Python WSGI Application'}],
+      'Django'   => ['django',  { :mem => '128M', :description => 'Python Django Application'}],
     }
 
     class << self
@@ -76,6 +77,10 @@ module VMC::Cli
           # Erlang/OTP using Rebar
           elsif !Dir.glob('releases/*/*.rel').empty? && !Dir.glob('releases/*/*.boot').empty?
             return Framework.lookup('Erlang/OTP Rebar')
+
+          # Python Django
+          elsif File.exist?('manage.py') && File.exist?('settings.py')
+            return Framework.lookup('Djano')
 
           # Python
           elsif !Dir.glob('*.py').empty?
