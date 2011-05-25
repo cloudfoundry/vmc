@@ -80,7 +80,7 @@ module VMC::Cli
 
           # Python Django
           elsif File.exist?('manage.py') && File.exist?('settings.py')
-            return Framework.lookup('Djano')
+            return Framework.lookup('Django')
 
           # Python
           elsif !Dir.glob('*.py').empty?
