@@ -401,9 +401,13 @@ class VMC::Client
         end
         puts "REQUEST_BODY: #{req[:payload]}" if req[:payload]
         puts "RESPONSE: [#{response.code}]"
-        begin
-            puts JSON.pretty_generate(JSON.parse(response.body))
-        rescue
+        if response.headers[:content_type] && response.headers[:content_type].start_with?('application/json')
+            begin
+                puts JSON.pretty_generate(JSON.parse(response.body))
+            rescue
+                puts "#{response.body}"
+            end
+        else
             puts "#{response.body}"
         end
         puts '<<<'
