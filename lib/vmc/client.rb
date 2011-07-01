@@ -395,9 +395,21 @@ class VMC::Client
         puts '>>>'
         puts "PROXY: #{RestClient.proxy}" if RestClient.proxy
         puts "REQUEST: #{req[:method]} #{req[:url]}"
-        puts "RESPONSE_HEADERS: #{response.headers}"
+        puts "RESPONSE_HEADERS:"
+        response.headers.each do |key, value|
+            puts "    #{key} : #{value}"
+        end
         puts "REQUEST_BODY: #{req[:payload]}" if req[:payload]
-        puts "RESPONSE: [#{response.code}] #{response.body}"
+        puts "RESPONSE: [#{response.code}]"
+        if response.headers[:content_type] && response.headers[:content_type].start_with?('application/json')
+            begin
+                puts JSON.pretty_generate(JSON.parse(response.body))
+            rescue
+                puts "#{response.body}"
+            end
+        else
+            puts "#{response.body}"
+        end
         puts '<<<'
       end
     end
