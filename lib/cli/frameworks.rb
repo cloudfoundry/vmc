@@ -9,9 +9,10 @@ module VMC::Cli
       'Rails'    => ['rails3',  { :mem => '256M', :description => 'Rails Application'}],
       'Spring'   => ['spring',  { :mem => '512M', :description => 'Java SpringSource Spring Application'}],
       'Grails'   => ['grails',  { :mem => '512M', :description => 'Java SpringSource Grails Application'}],
-      'Lift'   =>   ['lift',    { :mem => '512M', :description => 'Scala Lift Application'}],
+      'Lift'     => ['lift',    { :mem => '512M', :description => 'Scala Lift Application'}],
       'Roo'      => ['spring',  { :mem => '512M', :description => 'Java SpringSource Roo Application'}],
       'JavaWeb'  => ['spring',  { :mem => '512M', :description => 'Java Web Application'}],
+      'Virgo'    => ['virgo',   { :mem => '128M', :description => 'Eclipse Virgo Application'}],
       'Sinatra'  => ['sinatra', { :mem => '128M', :description => 'Sinatra Application'}],
       'Node'     => ['node',    { :mem => '64M',  :description => 'Node.js Application'}],
       'Erlang/OTP Rebar' => ['otp_rebar',  { :mem => '64M',  :description => 'Erlang/OTP Rebar Application'}]
