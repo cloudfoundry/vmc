@@ -48,6 +48,10 @@ class VMC::Cli::Runner
       opts.on('-t [TKEY]')         { |tkey|  @options[:trace] = tkey || true }
       opts.on('--trace [TKEY]')    { |tkey|  @options[:trace] = tkey || true }
 
+      # start application in debug mode
+      opts.on('-d [MODE]')         { |mode|  @options[:debug] = mode || "run" }
+      opts.on('--debug [MODE]')    { |mode|  @options[:debug] = mode || "run" }
+
       opts.on('-q', '--quiet')     {         @options[:quiet] = true }
 
       # Don't use builtin zip
@@ -216,7 +220,7 @@ class VMC::Cli::Runner
       set_cmd(:apps, :list)
 
     when 'start'
-      usage('vmc start <appname>')
+      usage('vmc start <appname> [-d [MODE]]')
       set_cmd(:apps, :start, 1)
 
     when 'stop'
@@ -224,7 +228,7 @@ class VMC::Cli::Runner
       set_cmd(:apps, :stop, 1)
 
     when 'restart'
-      usage('vmc restart <appname>')
+      usage('vmc restart <appname> [-d [MODE]]')
       set_cmd(:apps, :restart, 1)
 
     when 'rename'
@@ -289,7 +293,7 @@ class VMC::Cli::Runner
       set_cmd(:apps, :crashlogs, 1)
 
     when 'push'
-      usage('vmc push [appname] [--path PATH] [--url URL] [--instances N] [--mem] [--runtime RUNTIME] [--no-start]')
+      usage('vmc push [appname] [--path PATH] [--url URL] [--instances N] [--mem] [--runtime RUNTIME] [--no-start] [-d [MODE]]')
       if @args.size == 1
         set_cmd(:apps, :push, 1)
       else
@@ -297,7 +301,7 @@ class VMC::Cli::Runner
       end
 
     when 'update'
-      usage('vmc update <appname> [--path PATH]')
+      usage('vmc update <appname> [--path PATH] [-d [MODE]]')
       set_cmd(:apps, :update, 1)
 
     when 'services'

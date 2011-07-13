@@ -44,6 +44,18 @@ module VMC::Cli::Command
       return display "Application '#{appname}' could not be found".red if app.nil?
       return display "Application '#{appname}' already started".yellow if app[:state] == 'STARTED'
 
+      if @options[:debug]
+        runtimes = client.runtimes_info
+        return display "Cannot get runtime information." unless runtimes
+
+        runtime = runtimes[app[:staging][:stack].to_sym]
+        return display "Unknown runtime." unless runtime
+
+        unless runtime[:debug_env][@options[:debug].to_sym]
+          return display "Application '#{appname}' cannot start in '#{@options[:debug]}' mode"
+        end
+      end
+
       banner = 'Staging Application: '
       display banner, false
 
@@ -57,6 +69,7 @@ module VMC::Cli::Command
       end
 
       app[:state] = 'STARTED'
+      app[:debug] = @options[:debug]
       client.update_app(appname, app)
 
       Thread.kill(t)
@@ -771,9 +784,9 @@ module VMC::Cli::Command
       return display "No running instances for [#{appname}]".yellow if instances_info.empty?
 
       instances_table = table do |t|
-        t.headings = 'Index', 'State', 'Start Time'
+        t.headings = 'Index', 'State', 'Start Time', 'Debug Port'
         instances_info.each do |entry|
-          t << [entry[:index], entry[:state], Time.at(entry[:since]).strftime("%m/%d/%Y %I:%M%p")]
+          t << [entry[:index], entry[:state], Time.at(entry[:since]).strftime("%m/%d/%Y %I:%M%p"), entry[:debug_port]]
         end
       end
       display "\n"
@@ -825,12 +838,17 @@ module VMC::Cli::Command
       case health(app)
         when 'N/A'
           # Health manager not running.
-          err "\Application '#{appname}'s state is undetermined, not enough information available." if error_on_health
+          err "\nApplication '#{appname}'s state is undetermined, not enough information available." if error_on_health
           return false
         when 'RUNNING'
           return true
         else
-          return false
+          if app[:meta][:debug] == "wait"
+            display "\nApplication [#{appname}] has started in a mode that is waiting for you to trigger startup."
+            return true
+          else
+            return false
+          end
       end
     end
 
