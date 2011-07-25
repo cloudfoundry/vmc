@@ -15,8 +15,8 @@ module VMC::Cli::Command
       tries ||= 0
       email = ask("Email: ") unless no_prompt || email
       password = ask("Password: ") {|q| q.echo = '*'} unless no_prompt || password
-      err "Need a valid email" unless email
-      err "Need a password" unless password
+      err "Need a valid email" unless email =~ /^([^@\s]+)@((?:[-a-z0-9]+\.)+[a-z]{2,})$/i
+      err "Need a password" if password.empty?
       login_and_save_token(email, password)
       say "Successfully logged into [#{target_url}]".green
     rescue VMC::Client::TargetError
