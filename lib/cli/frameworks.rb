@@ -78,6 +78,10 @@ module VMC::Cli
           # Erlang/OTP using Rebar
           elsif !Dir.glob('releases/*/*.rel').empty? && !Dir.glob('releases/*/*.boot').empty?
             return Framework.lookup('Erlang/OTP Rebar')
+
+          # Virgo
+          elsif !Dir.glob('*.par').empty? || !Dir.glob('*.plan').empty?
+            return Framework.lookup('Virgo')
           end
         end
         nil
