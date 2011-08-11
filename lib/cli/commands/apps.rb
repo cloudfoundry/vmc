@@ -329,11 +329,12 @@ module VMC::Cli::Command
 
     def update(appname)
       app = client.app_info(appname)
+      framework = VMC::Cli::Framework.lookup(app[:staging][:model])
       if @options[:canary]
         display "[--canary] is deprecated and will be removed in a future version".yellow
       end
       path = @options[:path] || '.'
-      upload_app_bits(appname, path)
+      upload_app_bits(appname, path, framework)
       restart appname if app[:state] == 'STARTED'
     end
 
@@ -471,7 +472,7 @@ module VMC::Cli::Command
       end
 
       # Stage and upload the app bits.
-      upload_app_bits(appname, path)
+      upload_app_bits(appname, path, framework)
 
       start(appname, true) unless no_start
     end
@@ -543,7 +544,7 @@ module VMC::Cli::Command
       err "Can't deploy applications from staging directory: [#{Dir.tmpdir}]"
     end
 
-    def upload_app_bits(appname, path)
+    def upload_app_bits(appname, path, framework)
       display 'Uploading Application:'
 
       upload_file, file = "#{Dir.tmpdir}/#{appname}.zip", nil
@@ -559,8 +560,8 @@ module VMC::Cli::Command
         else
           FileUtils.mkdir(explode_dir)
           files = Dir.glob('{*,.[^\.]*}')
-          # Do not process .git files
-          files.delete('.git') if files
+          # Do not process .git and excluded files
+          files -= ['.git'] | framework.exclude if files
           FileUtils.cp_r(files, explode_dir)
         end
 

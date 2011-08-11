@@ -12,6 +12,7 @@ module VMC::Cli
       'Lift'   =>   ['lift',    { :mem => '512M', :description => 'Scala Lift Application'}],
       'Roo'      => ['spring',  { :mem => '512M', :description => 'Java SpringSource Roo Application'}],
       'JavaWeb'  => ['spring',  { :mem => '512M', :description => 'Java Web Application'}],
+      'Clojure'  => ['clojure', { :mem => '512M', :description => 'Clojure Web Application'}],
       'Sinatra'  => ['sinatra', { :mem => '128M', :description => 'Sinatra Application'}],
       'Node'     => ['node',    { :mem => '64M',  :description => 'Node.js Application'}],
       'Erlang/OTP Rebar' => ['otp_rebar',  { :mem => '64M',  :description => 'Erlang/OTP Rebar Application'}]
@@ -52,6 +53,12 @@ module VMC::Cli
               return Framework.lookup('JavaWeb')
             end
 
+          # Clojure
+          elsif File.exist?('project.clj')
+            f = Framework.lookup('Clojure')
+            f.exclude << "classes" << "lib" << "test"
+            return f
+
           # Simple Ruby Apps
           elsif !Dir.glob('*.rb').empty?
             matched_file = nil
@@ -84,8 +91,8 @@ module VMC::Cli
 
     end
 
-    attr_reader   :name, :description, :memory
-    attr_accessor :exec
+    attr_reader   :name, :description, :memory, :exclude
+    attr_accessor :exec, :exclude
 
     alias :mem :memory
 
@@ -94,11 +101,13 @@ module VMC::Cli
       @memory = opts[:mem] || DEFAULT_MEM
       @description = opts[:description] || 'Unknown Application Type'
       @exec = opts[:exec]
+      @exclude = opts[:exclude] || []
     end
 
     def to_s
       description
     end
+
   end
 
 end
