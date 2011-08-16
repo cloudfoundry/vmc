@@ -27,7 +27,8 @@ module VMC::Cli
         target_file = File.expand_path(TARGET_FILE)
         if File.exists? target_file
           @target_url = File.read(target_file).strip!
-          ha = @target_url.split('.')
+          # strip out the port if present as it's not needed
+          ha = @target_url.gsub(/\:[0-9]{2,}/, '').split('.')
           ha.shift
           @suggest_url = ha.join('.')
           @suggest_url = DEFAULT_SUGGEST if @suggest_url.empty?
