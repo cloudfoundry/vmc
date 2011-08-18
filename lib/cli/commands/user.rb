@@ -13,8 +13,8 @@ module VMC::Cli::Command
       email    = @options[:email] unless email
       password = @options[:password]
       tries ||= 0
-      email = ask("Email: ") unless no_prompt || email
-      password = ask("Password: ") {|q| q.echo = '*'} unless no_prompt || password
+      email = ask("Email") unless no_prompt || email
+      password = ask_chars("Password") { print "*" } unless no_prompt || password
       err "Need a valid email" unless email
       err "Need a password" unless password
       login_and_save_token(email, password)
@@ -39,8 +39,8 @@ module VMC::Cli::Command
       err "Need to be logged in to change password." unless email
       say "Changing password for '#{email}'\n"
       unless no_prompt
-        password = ask("New Password: ") {|q| q.echo = '*'}
-        password2 = ask("Verify Password: ") {|q| q.echo = '*'}
+        password = ask_chars("New Password") { print "*" }
+        password2 = ask_chars("Verify Password") { print "*" }
         err "Passwords did not match, try again" if password != password2
       end
       err "Password required" unless password

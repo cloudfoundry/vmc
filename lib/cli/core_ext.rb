@@ -38,6 +38,10 @@ module VMCExtensions
     raise VMC::Cli::CliExit, "#{prefix}#{message}"
   end
 
+  def warn(msg)
+    say "#{"[WARNING]".yellow} #{msg}"
+  end
+
   def quit(message = nil)
     raise VMC::Cli::GracefulExit, message
   end
@@ -65,6 +69,142 @@ module VMCExtensions
     return sprintf("%.#{prec}fG", size/(1024.0*1024.0*1024.0))
   end
 
+  # a variation of `ask/choose' with...:
+  #   1. a UI more consistent with the rest of VMC
+  #   2. attempting type conversion based on `default'
+  #   3. options list with completion/ambiguity handling
+  #
+  # `question' is the prompt (without ": " at the end)
+  # `options' is a hash containing:
+  #   :default - the default value
+  #   :choices - a list of strings to choose from
+  #   :indexed - whether to allow choosing from `:choices' by their index,
+  #              best for when there are many choices
+  def ask(question, options = {})
+    choices = options[:choices]
+    default = options[:default]
+    indexed = options[:indexed]
+
+    msg = question.dup
+
+    if choices
+      if indexed
+        choices.each.with_index do |o, i|
+          puts "#{i + 1}: #{o}"
+        end
+      else
+        msg << " (#{choices.collect(&:inspect).join ", "})"
+      end
+    end
+
+    case default
+    when true
+      msg << " [Yn]"
+    when false
+      msg << " [yN]"
+    else
+      msg << " [#{default.inspect}]" if default
+    end
+
+    print "#{msg}: "
+    ans = STDIN.gets.chomp
+
+    if ans.empty?
+      if default == nil
+        return ask(question, options)
+      else
+        return default
+      end
+    end
+
+    if choices
+      match = choices.select { |x| x.start_with? ans }
+
+      if match.size == 1
+        ans = match.first
+      else
+        if match.size > 1
+          warn "Please disambiguate: #{match.join " or "}?"
+        else
+          if indexed and res = choices[ans.to_i - 1]
+            return res
+          end
+
+          warn "Unknown answer, please try again!"
+        end
+
+        return ask(question, options)
+      end
+    end
+
+    VMCExtensions.match_type(ans, default)
+  end
+
+  # try to make `str' be the same class as `x'
+  def self.match_type(str, x)
+    case x
+    when Integer
+      str.to_i
+    when true, false
+      str.upcase.start_with? "Y"
+    else
+      str
+    end
+  end
+
+  # read a line, passing each character to a callback block
+  # used primarily for password prompts where the characters are
+  # displayed as stars
+  def ask_chars(prompt = nil)
+    print "#{prompt}: " if prompt
+
+    line = ""
+
+    VMCExtensions.with_char_io do
+      until (c = VMCExtensions.get_character) =~ /[\r\n]/
+        if c == "\177" # backspace
+          if line.size > 0
+            line.slice!(-1, 1)
+            print "\b\e[P"
+          end
+        else
+          line << c
+          yield c if block_given?
+        end
+      end
+    end
+
+    print "\n"
+
+    line
+  end
+
+  # definitions for reading character-by-character
+  begin
+    require "Win32API"
+
+    def self.with_char_io
+      yield
+    end
+
+    def self.get_character
+      Win32API.new("crtdll", "_getch", [], "L").Call.chr
+    end
+  rescue LoadError
+    # set tty modes for the duration of a block, restoring them afterward
+    def self.with_char_io
+      before = `stty -g`
+      system("stty raw -echo -icanon isig")
+      yield
+    ensure
+      system("stty #{before}")
+    end
+
+    # this assumes we're wrapped in #with_stty
+    def self.get_character
+      STDIN.getc.chr
+    end
+  end
 end
 
 module VMCStringExtensions
