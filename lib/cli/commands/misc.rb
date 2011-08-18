@@ -31,8 +31,8 @@ module VMC::Cli::Command
       unless client.target_valid?
         if prompt_ok
           display "Host is not valid: '#{target_url}'".red
-          show_response = ask "Would you like see the response [yN]? "
-          display "\n<<<\n#{client.raw_info}\n>>>\n" if show_response.upcase == 'Y'
+          show_response = query "Would you like see the response?", false
+          display "\n<<<\n#{client.raw_info}\n>>>\n" if show_response
         end
         exit(false)
       else
