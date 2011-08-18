@@ -1,0 +1,22 @@
+Erlang Support
+--------------
+
+This application demonstrates Erlang support from vcap. The application was generated
+using the Mochiweb "make app" command, and the only modification was to change:
+  Web = web_specs(mochiweb_test_web, 8080),
+to:
+  Web = web_specs(mochiweb_test_web,
+    case os:getenv("VMC_APP_PORT") of
+      false     -> 9090;
+      P         -> list_to_integer(P)
+    end),
+
+in mochiweb_test_sup:init, allowing for the VMC port to be injected.
+
+
+Deployment
+----------
+To deploy this application, execute:
+  vmc update erlang --url erlang.vcap.me
+
+Note that you'll need erlang-nox installed on the cloud host.
