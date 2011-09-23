@@ -20,20 +20,23 @@ module VMC::Cli
       attr_accessor :output
       attr_accessor :trace
       attr_accessor :nozip
-      attr_reader   :suggest_url
+
+      def suggest_url
+        return @suggest_url if @suggest_url
+        ha = target_url.split('.')
+        ha.shift
+        @suggest_url = ha.join('.')
+        @suggest_url = DEFAULT_SUGGEST if @suggest_url.empty?
+        @suggest_url
+      end
 
       def target_url
         return @target_url if @target_url
         target_file = File.expand_path(TARGET_FILE)
         if File.exists? target_file
           @target_url = lock_and_read(target_file).strip!
-          ha = @target_url.split('.')
-          ha.shift
-          @suggest_url = ha.join('.')
-          @suggest_url = DEFAULT_SUGGEST if @suggest_url.empty?
         else
           @target_url  = DEFAULT_TARGET
-          @suggest_url = DEFAULT_SUGGEST
         end
         @target_url = "http://#{@target_url}" unless /^https?/ =~ @target_url
         @target_url = @target_url.gsub(/\/+$/, '')
