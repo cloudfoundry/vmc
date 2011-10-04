@@ -8,6 +8,7 @@ module VMC::Cli::Command
 
   class Apps < Base
     include VMC::Cli::ServicesHelper
+    include VMC::Cli::ManifestHelper
 
     def list
       apps = client.apps
@@ -36,9 +37,22 @@ module VMC::Cli::Command
     HEALTH_TICKS  = 5/SLEEP_TIME
     TAIL_TICKS    = 45/SLEEP_TIME
     GIVEUP_TICKS  = 120/SLEEP_TIME
-    YES_SET = Set.new(["y", "Y", "yes", "YES"])
 
-    def start(appname, push = false)
+    def info(what, default=nil)
+      @options[what] || (@app_info && @app_info[what.to_s]) || default
+    end
+
+    def start(appname=nil, push=false)
+      if appname
+        do_start(appname, push)
+      else
+        each_app do |name|
+          do_start(name, push)
+        end
+      end
+    end
+
+    def do_start(appname, push=false)
       app = client.app_info(appname)
 
       return display "Application '#{appname}' could not be found".red if app.nil?
@@ -57,7 +71,7 @@ module VMC::Cli::Command
           display "\nApplication '#{appname}' cannot start in '#{@options[:debug]}' mode"
 
           if push
-            display "Try `vmc start' with one of the following modes: #{modes.inspect}"
+            display "Try 'vmc start' with one of the following modes: #{modes.inspect}"
           else
             display "Available modes: #{modes.inspect}"
           end
@@ -66,7 +80,7 @@ module VMC::Cli::Command
         end
       end
 
-      banner = 'Staging Application: '
+      banner = "Staging Application '#{appname}': "
       display banner, false
 
       t = Thread.new do
@@ -86,7 +100,7 @@ module VMC::Cli::Command
       clear(LINE_LENGTH)
       display "#{banner}#{'OK'.green}"
 
-      banner = 'Starting Application: '
+      banner = "Starting Application '#{appname}': "
       display banner, false
 
       count = log_lines_displayed = 0
@@ -125,16 +139,31 @@ module VMC::Cli::Command
       display "#{banner}#{'OK'.green}"
     end
 
-    def stop(appname)
+    def stop(appname=nil)
+      if appname
+        do_stop(appname)
+      else
+        reversed = []
+        each_app do |name|
+          reversed.unshift name
+        end
+
+        reversed.each do |name|
+          do_stop(name)
+        end
+      end
+    end
+
+    def do_stop(appname)
       app = client.app_info(appname)
       return display "Application '#{appname}' already stopped".yellow if app[:state] == 'STOPPED'
-      display 'Stopping Application: ', false
+      display "Stopping Application '#{appname}': ", false
       app[:state] = 'STOPPED'
       client.update_app(appname, app)
       display 'OK'.green
     end
 
-    def restart(appname)
+    def restart(appname=nil)
       stop(appname)
       start(appname)
     end
@@ -248,6 +277,22 @@ module VMC::Cli::Command
       end
     end
 
+    def provisioned_services_apps_hash
+      apps = client.apps
+      services_apps_hash = {}
+      apps.each {|app|
+        app[:services].each { |svc|
+          svc_apps = services_apps_hash[svc]
+          unless svc_apps
+            svc_apps = Set.new
+            services_apps_hash[svc] = svc_apps
+          end
+          svc_apps.add(app[:name])
+        } unless app[:services] == nil
+      }
+      services_apps_hash
+    end
+
     def all_files(appname, path)
       instances_info_envelope = client.app_instances(appname)
       return if instances_info_envelope.is_a?(Array)
@@ -313,7 +358,9 @@ module VMC::Cli::Command
       grab_crash_logs(appname, instance)
     end
 
-    def instances(appname, num=nil)
+    def instances(appname=nil, num=nil)
+      appname ||= info(:name)
+
       if (num)
         change_instances(appname, num)
       else
@@ -355,27 +402,147 @@ module VMC::Cli::Command
       end
     end
 
-    def update(appname)
-      app = client.app_info(appname)
-      if @options[:canary]
-        display "[--canary] is deprecated and will be removed in a future version".yellow
+    def update(appname=nil)
+      if appname
+        app = client.app_info(appname)
+        if @options[:canary]
+          display "[--canary] is deprecated and will be removed in a future version".yellow
+        end
+        upload_app_bits(appname, @path)
+        restart appname if app[:state] == 'STARTED'
+      else
+        each_app do |name|
+          display "Updating application '#{name}'..."
+
+          app = client.app_info(name)
+          upload_app_bits(name, @application)
+          restart name if app[:state] == 'STARTED'
+        end
       end
-      path = @options[:path] || '.'
-      upload_app_bits(appname, path)
-      restart appname if app[:state] == 'STARTED'
+    end
+
+    def ordered_by_deps(apps, abspaths = nil, processed = Set[])
+      unless abspaths
+        abspaths = {}
+        apps.each do |p, i|
+          ep = File.expand_path("../" + p, manifest_file)
+          abspaths[ep] = i
+        end
+      end
+
+      ordered = []
+      apps.each do |path, info|
+        epath = File.expand_path("../" + path, manifest_file)
+
+        if deps = info["depends-on"]
+          dep_apps = {}
+          deps.each do |dep|
+            edep = File.expand_path("../" + dep, manifest_file)
+
+            err "Circular dependency detected." if processed.include? edep
+
+            dep_apps[dep] = abspaths[edep]
+          end
+
+          processed.add(epath)
+
+          ordered += ordered_by_deps(dep_apps, abspaths, processed)
+          ordered << [path, info]
+        elsif not processed.include? epath
+          ordered << [path, info]
+          processed.add(epath)
+        end
+      end
+
+      ordered
+    end
+
+    # take a block and call it once for each app to push/update.
+    # with @application and @app_info set appropriately
+    def each_app
+      if @manifest and all_apps = @manifest["applications"]
+        where = File.expand_path(@path)
+        single = false
+
+        all_apps.each do |path, info|
+          app = File.expand_path("../" + path, manifest_file)
+          if where.start_with?(app)
+            @application = app
+            @app_info = info
+            yield info["name"]
+            single = true
+            break
+          end
+        end
+
+        unless single
+          if where == File.expand_path("../", manifest_file)
+            ordered_by_deps(all_apps).each do |path, info|
+              app = File.expand_path("../" + path, manifest_file)
+              @application = app
+              @app_info = info
+              yield info["name"]
+            end
+          else
+            err "Path '#{@path}' is not known to manifest '#{manifest_file}'."
+          end
+        end
+      else
+        @application = @path
+        @app_info = @manifest
+        yield @app_info && @app_info["name"]
+      end
+
+      @application = nil
+      @app_info = nil
+
+      nil
     end
 
     def push(appname=nil)
-      instances = @options[:instances] || 1
-      exec = @options[:exec] || 'thin start'
+      unless no_prompt || @options[:path]
+        proceed = ask(
+          'Would you like to deploy from the current directory?',
+          :default => true
+        )
+
+        unless proceed
+          @path = ask('Deployment path')
+        end
+      end
+
+      each_app do |name|
+        display "Pushing application '#{name}'..." if name
+        do_push(name || appname)
+      end
+    end
+
+    # push a single app
+    def do_push(appname=nil)
+      unless @app_info
+        @manifest = {}
+
+        interact
+
+        if ask("Would you like to save this configuration?", :default => false)
+          save_manifest
+        end
+
+        resolve_manifest(@manifest)
+
+        @app_info = @manifest["applications"][@path]
+      end
+
+      instances = info(:instances, 1)
+      exec = info(:exec, 'thin start')
+
       ignore_framework = @options[:noframework]
       no_start = @options[:nostart]
 
-      path = @options[:path] || '.'
-      appname ||= @options[:name]
-      mem, memswitch = nil, @options[:mem]
+      appname ||= info(:name)
+      url = info(:url) || info(:urls)
+      mem, memswitch = nil, info(:mem)
       memswitch = normalize_mem(memswitch) if memswitch
-      url = @options[:url]
 
       # Check app existing upfront if we have appname
       app_checked = false
@@ -394,17 +561,10 @@ module VMC::Cli::Command
         check_has_capacity_for(mem_choice_to_quota(memswitch) * instances)
       end
 
-      unless no_prompt || @options[:path]
-        unless ask('Would you like to deploy from the current directory?', :default => true)
-          path = ask('Please enter in the deployment path')
-        end
-      end
-
-      path = File.expand_path(path)
-      check_deploy_directory(path)
-
       appname ||= ask("Application Name") unless no_prompt
       err "Application Name required." if appname.nil? || appname.empty?
+
+      check_deploy_directory(@application)
 
       if !app_checked and app_exists?(appname)
         err "Application '#{appname}' already exists, use update or delete."
@@ -426,35 +586,17 @@ module VMC::Cli::Command
 
       url ||= default_url
 
-      # Detect the appropriate framework.
-      framework = nil
-      unless ignore_framework
-        framework = VMC::Cli::Framework.detect(path)
-
-        if prompt_ok and framework
-          framework_correct =
-            ask("Detected a #{framework}, is this correct?", :default => true)
-        end
-
-        if prompt_ok && (framework.nil? || !framework_correct)
-          display "#{"[WARNING]".yellow} Can't determine the Application Type." unless framework
-          framework = VMC::Cli::Framework.lookup(
-            ask(
-              "Select Application Type",
-              { :indexed => true,
-                :choices => VMC::Cli::Framework.known_frameworks
-              }
-            )
-          )
-          display "Selected #{framework}"
-        end
-        # Framework override, deprecated
-        exec = framework.exec if framework && framework.exec
-      else
+      if ignore_framework
         framework = VMC::Cli::Framework.new
+      else
+        f = info(:framework)
+        info = Hash[f["info"].collect { |k, v| [k.to_sym, v] }]
+
+        framework = VMC::Cli::Framework.new(f["name"], info)
+        exec = framework.exec if framework && framework.exec
       end
 
-      err "Application Type undetermined for path '#{path}'" unless framework
+      err "Application Type undetermined for path '#{@application}'" unless framework
 
       if memswitch
         mem = memswitch
@@ -477,9 +619,9 @@ module VMC::Cli::Command
         :name => "#{appname}",
         :staging => {
            :framework => framework.name,
-           :runtime => @options[:runtime]
+           :runtime => info(:runtime)
         },
-        :uris => [url],
+        :uris => Array(url),
         :instances => instances,
         :resources => {
           :memory => mem_quota
@@ -490,17 +632,28 @@ module VMC::Cli::Command
       client.create_app(appname, manifest)
       display 'OK'.green
 
-      # Services check
-      unless no_prompt || @options[:noservices]
-        services = client.services_info
-        unless services.empty?
-          proceed = ask("Would you like to bind any services to '#{appname}'?", :default => false)
-          bind_services(appname, services) if proceed
+
+      existing = Set.new(client.services.collect { |s| s[:name] })
+
+      if services = @app_info["services"]
+        services.each do |name, info|
+          if existing.include? name
+            if info["if_exists"] == "delete"
+              delete_service_banner(name)
+              create_service_banner(info["type"], name, true)
+              bind_service_banner(name, appname)
+            else
+              bind_service_banner(name, appname)
+            end
+          else
+            create_service_banner(info["type"], name, true)
+            bind_service_banner(name, appname)
+          end
         end
       end
 
       # Stage and upload the app bits.
-      upload_app_bits(appname, path)
+      upload_app_bits(appname, @application)
 
       start(appname, true) unless no_start
     end
@@ -665,78 +818,6 @@ module VMC::Cli::Command
       # Cleanup if we created an exploded directory.
       FileUtils.rm_f(upload_file) if upload_file
       FileUtils.rm_rf(explode_dir) if explode_dir
-    end
-
-    def choose_existing_service(appname, user_services)
-      return unless prompt_ok
-
-      display "The following provisioned services are available"
-      name = ask(
-        "Please select one you which to prevision",
-        { :indexed => true,
-          :choices => user_services.collect { |s| s[:name] }
-        }
-      )
-
-      bind_service_banner(name, appname, false)
-
-      true
-    end
-
-    def choose_new_service(appname, services)
-      return unless prompt_ok
-
-      display "The following system services are available"
-
-      vendor = ask(
-        "Please select one you wish to provision",
-        { :indexed => true,
-          :choices =>
-            services.values.collect { |type|
-              type.keys.collect(&:to_s)
-            }.flatten.sort!
-        }
-      )
-
-      default_name = random_service_name(vendor)
-      service_name = ask("Specify the name of the service",
-                         :default => default_name)
-
-      create_service_banner(vendor, service_name)
-      bind_service_banner(service_name, appname)
-    end
-
-    def bind_services(appname, services)
-      user_services = client.services
-
-      selected_existing = false
-      unless no_prompt || user_services.empty?
-        if ask("Would you like to use an existing provisioned service?",
-               :default => false)
-          selected_existing = choose_existing_service(appname, user_services)
-        end
-      end
-
-      # Create a new service and bind it here
-      unless selected_existing
-        choose_new_service(appname, services)
-      end
-    end
-
-    def provisioned_services_apps_hash
-      apps = client.apps
-      services_apps_hash = {}
-      apps.each {|app|
-        app[:services].each { |svc|
-          svc_apps = services_apps_hash[svc]
-          unless svc_apps
-            svc_apps = Set.new
-            services_apps_hash[svc] = svc_apps
-          end
-          svc_apps.add(app[:name])
-        } unless app[:services] == nil
-      }
-      services_apps_hash
     end
 
     def check_app_limit
