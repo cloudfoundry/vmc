@@ -1,4 +1,3 @@
-
 require 'rubygems'
 require 'terminal-table/import'
 
@@ -9,6 +8,8 @@ module VMC::Cli
     class Base
       attr_reader :no_prompt, :prompt_ok
 
+      MANIFEST = "manifest.yml"
+
       def initialize(options={})
         @options = options.dup
         @no_prompt = @options[:noprompts]
@@ -18,6 +19,132 @@ module VMC::Cli
         if WINDOWS
           VMC::Cli::Config.colorize = false
         end
+
+        @path = @options[:path] || '.'
+
+        load_manifest manifest_file if manifest_file
+      end
+
+      def manifest_file
+        return @options[:manifest] if @options[:manifest]
+        return @manifest_file if @manifest_file
+
+        where = File.expand_path(@path)
+        while true
+          if File.exists?(File.join(where, MANIFEST))
+            @manifest_file = File.join(where, MANIFEST)
+            break
+          elsif where == "/"
+            @manifest_file = nil
+            break
+          else
+            where = File.expand_path("../", where)
+          end
+        end
+
+        @manifest_file
+      end
+
+      def load_manifest_structure(file)
+        manifest = YAML.load_file file
+
+        Array(manifest["inherit"]).each do |p|
+          manifest = merge_parent(manifest, p)
+        end
+
+        if apps = manifest["applications"]
+          apps.each do |k, v|
+            abs = File.expand_path(k, file)
+            if Dir.pwd.start_with? abs
+              manifest = merge_manifest(manifest, v)
+            end
+          end
+        end
+
+        manifest
+      end
+
+      def resolve_manifest(manifest)
+        if apps = manifest["applications"]
+          apps.each_value do |v|
+            resolve_symbols(v)
+          end
+        end
+
+        resolve_symbols(manifest, manifest)
+      end
+
+      def load_manifest(file)
+        @manifest = load_manifest_structure(file)
+        resolve_manifest(@manifest)
+      end
+
+      def merge_parent(child, path)
+        file = File.expand_path("../" + path, manifest_file)
+        merge_manifest(child, load_manifest_structure(file))
+      end
+
+      def merge_manifest(child, parent)
+        merge = proc do |_, old, new|
+          if new.is_a?(Hash) and old.is_a?(Hash)
+            old.merge(new, &merge)
+          else
+            new
+          end
+        end
+
+        parent.merge(child, &merge)
+      end
+
+      def resolve_symbols(val, from = @manifest)
+        case val
+        when Hash
+          val.each_value do |v|
+            resolve_symbols(v, val)
+          end
+        when Array
+          val.each do |v|
+            resolve_symbols(v, from)
+          end
+        when String
+          val.gsub!(/\$\{([[:alnum:]\-]+)\}/) do
+            resolve_symbol(from, $1)
+          end
+        end
+
+        nil
+      end
+
+      def resolve_symbol(h, sym)
+        case sym
+        when "target-base"
+          target_base(h)
+
+        when "target-url"
+          target_url(h)
+
+        else
+          find_in_hash(h, [sym]) ||
+            manifest(sym) ||
+            err(sym, "Unknown symbol in manifest: ")
+        end
+      end
+
+      def manifest(*where)
+        find_in_hash(@manifest, ["properties"] + where) ||
+          find_in_hash(@manifest, ["applications", @application] + where) ||
+          find_in_hash(@manifest, where) ||
+          find_in_hash(VMC::Cli::ManifestHelper::DEFAULTS, where)
+      end
+
+      def find_in_hash(hash, where)
+        what = hash
+        where.each do |x|
+          return nil unless what.is_a?(Hash)
+          what = what[x]
+        end
+
+        what
       end
 
       def client
@@ -32,12 +159,16 @@ module VMC::Cli
         @client_info ||= client.info
       end
 
-      def target_url
-        @target_url ||= VMC::Cli::Config.target_url
+      def target_url(of = {})
+        of["target"] || VMC::Cli::Config.target_url
       end
 
-      def target_base
-        @target_base ||= VMC::Cli::Config.suggest_url
+      def target_base(of = {})
+        if of["target"]
+          VMC::Cli::Config.base_of(of["target"])
+        else
+          VMC::Cli::Config.suggest_url
+        end
       end
 
       def auth_token
