@@ -11,6 +11,7 @@ module VMC
     autoload :Runner,         "#{ROOT}/cli/runner"
     autoload :ZipUtil,        "#{ROOT}/cli/zip_util"
     autoload :ServicesHelper, "#{ROOT}/cli/services_helper"
+    autoload :ManifestHelper, "#{ROOT}/cli/manifest_helper"
 
     module Command
       autoload :Base,         "#{ROOT}/cli/commands/base"
@@ -19,6 +20,7 @@ module VMC
       autoload :Misc,         "#{ROOT}/cli/commands/misc"
       autoload :Services,     "#{ROOT}/cli/commands/services"
       autoload :User,         "#{ROOT}/cli/commands/user"
+      autoload :Manifest,     "#{ROOT}/cli/commands/manifest"
     end
 
   end
