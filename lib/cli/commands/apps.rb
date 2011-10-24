@@ -572,6 +572,17 @@ module VMC::Cli::Command
       err "Can't deploy applications from staging directory: [#{Dir.tmpdir}]"
     end
 
+    def check_unreachable_links
+      path = Dir.pwd
+      files = Dir.glob("#{path}/**/*", File::FNM_DOTMATCH)
+      unreachable_paths = files.select { |f|
+        File.symlink? f and !File.expand_path(File.readlink(f)).include? path
+      } if files
+      if unreachable_paths.length > 0
+        err "Can't deploy application containing links '#{unreachable_paths}' that reach outside its root '#{path}'"
+      end
+    end
+
     def upload_app_bits(appname, path)
       display 'Uploading Application:'
 
@@ -586,6 +597,7 @@ module VMC::Cli::Command
         if war_file = Dir.glob('*.war').first
           VMC::Cli::ZipUtil.unpack(war_file, explode_dir)
         else
+          check_unreachable_links
           FileUtils.mkdir(explode_dir)
           files = Dir.glob('{*,.[^\.]*}')
           # Do not process .git files
