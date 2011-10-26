@@ -49,11 +49,13 @@ module VMC::Cli::Command
       display "\n#{info[:description]}"
       display "For support visit #{info[:support]}"
       display ""
-      display "Target:   #{target_url} (v#{info[:version]})"
-      display "Client:   v#{VMC::Cli::VERSION}"
+      display "Target:         #{target_url} (v#{info[:version]})"
+      display "Client:         v#{VMC::Cli::VERSION}"
       if info[:user]
         display ''
-        display "User:     #{info[:user]}"
+        display "User:         #{info[:user]}"
+        display "Organization: #{info[:org]}"
+        display "Project:      #{info[:project]}"
       end
       if usage = info[:usage] and limits = info[:limits]
         tmem  = pretty_size(limits[:memory]*1024*1024)
@@ -62,9 +64,9 @@ module VMC::Cli::Command
         ser   = usage[:services]
         tapps = limits[:apps] || 0
         apps  = usage[:apps]  || 0
-        display "Usage:    Memory   (#{mem} of #{tmem} total)"
-        display "          Services (#{ser} of #{tser} total)"
-        display "          Apps     (#{apps} of #{tapps} total)" if limits[:apps]
+        display "Usage:        Memory   (#{mem} of #{tmem} total)"
+        display "              Services (#{ser} of #{tser} total)"
+        display "              Apps     (#{apps} of #{tapps} total)" if limits[:apps]
       end
     end
 

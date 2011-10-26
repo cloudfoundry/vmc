@@ -411,6 +411,10 @@ module VMC::Cli::Command
 
       default_url = "#{appname}.#{VMC::Cli::Config.suggest_url}"
 
+      if(!default_url.index("/").nil?)
+        default_url = default_url[0, default_url.index("/")]
+      end
+
       unless no_prompt || url
         url = ask(
           "Application Deployed URL",

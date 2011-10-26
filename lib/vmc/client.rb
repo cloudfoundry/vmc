@@ -67,6 +67,10 @@ class VMC::Client
     json_get(VMC::GLOBAL_RUNTIMES_PATH)
   end
 
+  def login_info
+    json_get(VMC::LOGIN_INFO_PATH)
+  end
+
   ######################################################
   # Apps
   ######################################################
@@ -267,8 +271,24 @@ class VMC::Client
   # login and return an auth_token
   # Auth token can be retained and used in creating
   # new clients, avoiding login.
-  def login(user, password)
-    status, body, headers = json_post("#{VMC::USERS_PATH}/#{user}/tokens", {:password => password})
+  #def login(user, password)
+  #  status, body, headers = json_post("#{VMC::USERS_PATH}/#{user}/tokens", {:password => password})
+  #  response_info = json_parse(body)
+  #  if response_info
+  #    @user = user
+  #    @auth_token = response_info[:token]
+  #  end
+  #end
+
+  def login(user, prompt_entries)
+    authentication_data = {}
+
+    if(!prompt_entries.kind_of? Hash)
+      authentication_data = {:password => prompt_entries}
+    else
+      authentication_data = prompt_entries
+    end
+    status, body, headers = json_post("#{VMC::USERS_PATH}/#{user}/tokens", authentication_data)
     response_info = json_parse(body)
     if response_info
       @user = user

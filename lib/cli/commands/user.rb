@@ -14,14 +14,40 @@ module VMC::Cli::Command
       password = @options[:password]
       tries ||= 0
 
+      prompt_entry_hash={}
+
       unless no_prompt
-        email ||= ask("Email")
-        password ||= ask("Password", :echo => "*")
+
+        if(!login_info[:prompts].nil?)
+
+          #Get the prompt information for this org
+          prompts = login_info[:prompts]
+
+          prompts.each do |prompt_name, prompt_configuration|
+
+            if(prompt_configuration[0] == :hidden.to_s)
+              prompt_entry_hash[prompt_name] = ask(prompt_configuration[1], :echo => "*")
+            else
+              prompt_entry_hash[prompt_name] = ask(prompt_configuration[1])
+              if(prompt_configuration[0] == :id.to_s)
+                email = prompt_entry_hash[prompt_name]
+              end
+            end
+
+          end
+
+          login_with_custom_credentials_and_save_token(email, prompt_entry_hash)
+
+        else
+          email ||= ask("Email")
+          password ||= ask("Password", :echo => "*")
+          err "Need a valid email" unless email
+          err "Need a password" unless password
+          login_and_save_token(email, password)
+        end
+
       end
 
-      err "Need a valid email" unless email
-      err "Need a password" unless password
-      login_and_save_token(email, password)
       say "Successfully logged into [#{target_url}]".green
     rescue VMC::Client::TargetError
       display "Problem with login, invalid account or password.".red
@@ -56,6 +82,11 @@ module VMC::Cli::Command
 
     def login_and_save_token(email, password)
       token = client.login(email, password)
+      VMC::Cli::Config.store_token(token)
+    end
+
+    def login_with_custom_credentials_and_save_token(email, prompt_entry_hash)
+      token = client.login(email, prompt_entry_hash)
       VMC::Cli::Config.store_token(token)
     end
 

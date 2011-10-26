@@ -13,6 +13,7 @@ module VMC
   GLOBAL_SERVICES_PATH = '/info/services'
   GLOBAL_RUNTIMES_PATH = '/info/runtimes'
   RESOURCES_PATH       = '/resources'
+  LOGIN_INFO_PATH      = '/loginInfo'
 
   # User specific paths
   APPS_PATH            = '/apps'

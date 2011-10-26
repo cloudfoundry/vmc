@@ -34,6 +34,10 @@ module VMC::Cli
         @client_info ||= client.info
       end
 
+      def login_info
+        @login_info ||= client.login_info
+      end
+
       def target_url
         @target_url ||= VMC::Cli::Config.target_url
       end
