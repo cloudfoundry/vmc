@@ -6,18 +6,19 @@ module VMC::Cli
     DEFAULT_MEM = '256M'
 
     FRAMEWORKS = {
-      'Rails'    => ['rails3',  { :mem => '256M', :description => 'Rails Application'}],
-      'Spring'   => ['spring',  { :mem => '512M', :description => 'Java SpringSource Spring Application'}],
-      'Grails'   => ['grails',  { :mem => '512M', :description => 'Java SpringSource Grails Application'}],
-      'Lift'   =>   ['lift',    { :mem => '512M', :description => 'Scala Lift Application'}],
-      'JavaWeb'  => ['java_web',{ :mem => '512M', :description => 'Java Web Application'}],
-      'Sinatra'  => ['sinatra', { :mem => '128M', :description => 'Sinatra Application'}],
-      'Node'     => ['node',    { :mem => '64M',  :description => 'Node.js Application'}],
-      'PHP'      => ['php',     { :mem => '128M', :description => 'PHP Application'}],
+      'Rails'            => ['rails3',     { :mem => '256M', :description => 'Rails Application'}],
+      'Spring'           => ['spring',     { :mem => '512M', :description => 'Java SpringSource Spring Application'}],
+      'Grails'           => ['grails',     { :mem => '512M', :description => 'Java SpringSource Grails Application'}],
+      'Lift'             => ['lift',       { :mem => '512M', :description => 'Scala Lift Application'}],
+      'JavaWeb'          => ['java_web',   { :mem => '512M', :description => 'Java Web Application'}],
+      'Sinatra'          => ['sinatra',    { :mem => '128M', :description => 'Sinatra Application'}],
+      'Node'             => ['node',       { :mem => '64M',  :description => 'Node.js Application'}],
+      'PHP'              => ['php',        { :mem => '128M', :description => 'PHP Application'}],
       'Erlang/OTP Rebar' => ['otp_rebar',  { :mem => '64M',  :description => 'Erlang/OTP Rebar Application'}],
-      'WSGI'     => ['wsgi',    { :mem => '64M',  :description => 'Python WSGI Application'}],
-      'Django'   => ['django',  { :mem => '128M', :description => 'Python Django Application'}],
-    }
+      'WSGI'             => ['wsgi',       { :mem => '64M',  :description => 'Python WSGI Application'}],
+      'Django'           => ['django',     { :mem => '128M', :description => 'Python Django Application'}],
+      'Mono ASP.Net'     => ['monoaspnet', { :mem => '256M', :description => 'Mono ASP.Net Application'}],
+     }
 
     class << self
 
@@ -99,6 +100,9 @@ module VMC::Cli
           elsif !Dir.glob('wsgi.py').empty?
             return Framework.lookup('WSGI')
 
+          # Mono ASP.Net
+          elsif !Dir.glob('*.asmx').empty? || !Dir.glob('*.aspx').empty? || !Dir.glob('*.ashx').empty? || !Dir.glob('*.asax').empty? || !Dir.glob('*.ascx').empty? || !Dir.glob('*.cs').empty?
+            return Framework.lookup('Mono ASP.Net')
           end
         end
         nil
