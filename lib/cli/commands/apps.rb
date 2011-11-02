@@ -640,6 +640,8 @@ module VMC::Cli::Command
 
         end
 
+        VMC::Cli::ZipUtil.trim_empty_dirs(explode_dir)
+
         # If no resource needs to be sent, add an empty file to ensure we have
         # a multi-part request that is expected by nginx fronting the CC.
         if VMC::Cli::ZipUtil.get_files_to_pack(explode_dir).empty?

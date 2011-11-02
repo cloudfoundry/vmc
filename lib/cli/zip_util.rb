@@ -1,5 +1,6 @@
 
 require 'zip/zipfilesystem'
+require 'fileutils'
 
 module VMC::Cli
 
@@ -53,6 +54,31 @@ module VMC::Cli
           PACK_EXCLUSION_GLOBS.each { |e| process = false if File.fnmatch(e, File.basename(f)) }
           process && File.exists?(f)
         end
+      end
+
+      def trim_empty_dirs(dir)
+        empty = true
+        dirs_to_delete = []
+        files = Dir.glob("#{dir}/{*,.[^\.]*}")
+        files.each do |filename|
+          if File.file? filename
+            empty = false
+          else
+            entries = Dir.entries(filename)
+            if entries.count == 0
+              dirs_to_delete << File.expand_path(filename)
+              empty = empty and true
+            else
+              sub_dir_empty = trim_empty_dirs(filename)
+              dirs_to_delete << File.expand_path(filename) if sub_dir_empty
+              empty = empty and sub_dir_empty
+            end
+          end
+        end
+        dirs_to_delete.each do |dir|
+          FileUtils.remove_dir(dir, true)
+        end
+        empty
       end
 
       def pack(dir, zipfile)
