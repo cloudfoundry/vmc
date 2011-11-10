@@ -185,7 +185,7 @@ module VMC::Cli::Command
       uris << url
       app[:uris] = uris
       client.update_app(appname, app)
-      display "Succesfully mapped url".green
+      display "Successfully mapped url".green
     end
 
     def unmap(appname, url)
@@ -196,7 +196,7 @@ module VMC::Cli::Command
       err "Invalid url" unless deleted
       app[:uris] = uris
       client.update_app(appname, app)
-      display "Succesfully unmapped url".green
+      display "Successfully unmapped url".green
 
     end
 
@@ -686,7 +686,7 @@ module VMC::Cli::Command
 
       display "The following provisioned services are available"
       name = ask(
-        "Please select one you which to prevision",
+        "Please select one you wish to use",
         { :indexed => true,
           :choices => user_services.collect { |s| s[:name] }
         }
