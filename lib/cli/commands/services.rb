@@ -165,7 +165,7 @@ module VMC::Cli::Command
         wait_for_tunnel_end
       else
         wait_for_tunnel_start(port)
-        start_local_prog(which, local_prog_cmdline(clients[which], port, conn_info))
+        start_local_prog(which, clients, conn_info, port)
       end
     end
 

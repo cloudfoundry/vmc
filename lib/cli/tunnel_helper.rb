@@ -231,7 +231,7 @@ module VMC::Cli
       @local_tunnel_thread.join
     end
 
-    def local_prog_cmdline(command, local_port, tunnel_info)
+    def resolve(command, tunnel_info, local_port)
       cmd = command.dup
       cmd.gsub!(/\$\{\s*([^\}]+)\s*\}/) do
         case $1
@@ -249,7 +249,20 @@ module VMC::Cli
       cmd
     end
 
-    def start_local_prog(which, cmdline)
+    def start_local_prog(which, clients, info, port)
+      command = clients[which]
+
+      case command
+      when Hash
+        cmdline = resolve(command["command"], info, port)
+        command["environment"].each do |e|
+          e =~ /([^=]+)=(["']?)([^"']*)\2/
+          ENV[$1] = resolve($3, info, port)
+        end
+      when String
+        cmdline = resolve(command, info, port)
+      end
+
       display "Launching '#{cmdline}'"
       display ''
       unless system(cmdline)
