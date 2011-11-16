@@ -28,7 +28,7 @@ module VMC::Cli
         return @target_url if @target_url
         target_file = File.expand_path(TARGET_FILE)
         if File.exists? target_file
-          @target_url = lock_and_read(target_file).strip!
+          @target_url = lock_and_read(target_file).strip
           ha = @target_url.split('.')
           ha.shift
           @suggest_url = ha.join('.')
