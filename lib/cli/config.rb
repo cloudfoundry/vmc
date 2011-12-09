@@ -130,11 +130,7 @@ module VMC::Cli
 
       def lock_and_read(file)
         File.open(file, File::RDONLY) {|f|
-          if defined? JRUBY_VERSION
-            f.flock(File::LOCK_SH)
-          else
-            f.flock(File::LOCK_EX)
-          end
+          f.flock(File::LOCK_SH)
           contents = f.read
           f.flock(File::LOCK_UN)
           contents
