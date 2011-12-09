@@ -129,8 +129,8 @@ module VMC::Cli
       end
 
       def lock_and_read(file)
-        File.open(file, "r") {|f|
-          f.flock(File::LOCK_EX)
+        File.open(file, File::RDONLY) {|f|
+          f.flock(File::LOCK_SH)
           contents = f.read
           f.flock(File::LOCK_UN)
           contents
