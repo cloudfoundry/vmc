@@ -17,6 +17,7 @@ module VMC::Cli
       'Erlang/OTP Rebar' => ['otp_rebar',  { :mem => '64M',  :description => 'Erlang/OTP Rebar Application'}],
       'WSGI'     => ['wsgi',    { :mem => '64M',  :description => 'Python WSGI Application'}],
       'Django'   => ['django',  { :mem => '128M', :description => 'Python Django Application'}],
+      'ASP.NET 4.0'  => ['aspdotnet', { :mem => '64M', :description => 'ASP.NET 4.0 Application'}],
     }
 
     class << self
@@ -81,6 +82,11 @@ module VMC::Cli
             if File.exist?('server.js') || File.exist?('app.js') || File.exist?('index.js') || File.exist?('main.js')
               return Framework.lookup('Node')
             end
+
+          # ASP.NET 4.0
+          elsif !Dir.glob('*.config').empty?
+            if File.exist?('web.config')
+              return Framework.lookup('ASP.NET 4.0')
 
           # PHP
           elsif !Dir.glob('*.php').empty?
