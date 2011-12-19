@@ -121,12 +121,12 @@ module VMC::Cli::Command
 
       if not tunnel_pushed?
         display "Deploying tunnel application '#{tunnel_appname}'."
-        auth = ask("Create a password", :echo => "*")
+        auth = VMC::Cli::Config.auth_token
         push_caldecott(auth)
         bind_service_banner(service, tunnel_appname, false)
         start_caldecott
       else
-        auth = ask("Password", :echo => "*")
+        auth = tunnel_auth
       end
 
       if not tunnel_healthy?(auth)
