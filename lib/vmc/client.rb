@@ -93,7 +93,7 @@ class VMC::Client
     #FIXME, manifest should be allowed to be null, here for compatability with old cc's
     resource_manifest ||= []
     check_login_status
-    upload_data = {:_method => 'put'}
+    upload_data = {:_method => 'put', :multipart => true}
     if zipfile
       if zipfile.is_a? File
         file = zipfile
