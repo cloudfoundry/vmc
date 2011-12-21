@@ -1,3 +1,5 @@
+require "uuidtools"
+
 module VMC::Cli::Command
 
   class Services < Base
@@ -118,7 +120,7 @@ module VMC::Cli::Command
 
       if not tunnel_pushed?
         display "Deploying tunnel application '#{tunnel_appname}'."
-        auth = VMC::Cli::Config.auth_token
+        auth = UUIDTools::UUID.random_create.to_s
         push_caldecott(auth)
         bind_service_banner(service, tunnel_appname, false)
         start_caldecott
