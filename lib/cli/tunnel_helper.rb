@@ -199,7 +199,7 @@ module VMC::Cli
 
       PORT_RANGE.times do |n|
         begin
-          TCPSocket.open('localhost', port)
+          TCPSocket.open('127.0.0.1', port)
           port += 1
         rescue => e
           return port
@@ -212,7 +212,7 @@ module VMC::Cli
     def wait_for_tunnel_start(port)
       10.times do |n|
         begin
-          TCPSocket.open('localhost', port)
+          TCPSocket.open('127.0.0.1', port)
           display '' if n > 0
           return true
         rescue => e
@@ -235,8 +235,7 @@ module VMC::Cli
       str.gsub(/\$\{\s*([^\}]+)\s*\}/) do
         case $1
         when "host"
-          # TODO: determine proper host
-          "localhost"
+          "127.0.0.1"
         when "port"
           local_port
         when "user", "username"
