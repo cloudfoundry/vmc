@@ -17,6 +17,10 @@ module VMC
   # User specific paths
   APPS_PATH            = 'apps'
   SERVICES_PATH        = 'services'
-  USERS_PATH           = 'users'
+  USERS_PATH           = 'users'     # obsolete if authn_target is set
+
+  # Paths relative to an authn_target
+  LOGIN_INFO_PATH      = 'login_info'
+  LOGIN_TOKEN_PATH     = ['oauth', 'authorize']
 
 end
