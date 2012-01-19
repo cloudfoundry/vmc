@@ -73,14 +73,6 @@ module VMC::Cli::Command
       start(appname)
     end
 
-    def rename(appname, newname)
-      app = client.app_info(appname)
-      app[:name] = newname
-      display 'Renaming Appliction: '
-      client.update_app(newname, app)
-      display 'OK'.green
-    end
-
     def mem(appname, memsize=nil)
       app = client.app_info(appname)
       mem = current_mem = mem_quota_to_choice(app[:resources][:memory])
@@ -136,7 +128,7 @@ module VMC::Cli::Command
     def delete(appname=nil)
       force = @options[:force]
       if @options[:all]
-        if no_prompt || force || ask("Delete ALL applications and services?", :default => false)
+        if no_prompt || force || ask("Delete ALL applications?", :default => false)
           apps = client.apps
           apps.each { |app| delete_app(app[:name], force) }
         end
