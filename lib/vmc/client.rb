@@ -24,19 +24,6 @@ class VMC::Client
   attr_reader   :target, :host, :user, :proxy, :auth_token
   attr_accessor :trace
 
-  # NOTE: this is prototype code for adding support for a separate
-  # authentication endpoint. The goal here is to get support added
-  # with minimal changes to the overall VMC code. 
-  # TODO: Clean up: 
-  #    if the authn_target endpoint is non-nil, the lower level 
-  #    requests below use the :authn_target endpoint instead of :target
-  #    and the upper level code needs to clear the authn_target before
-  #    requests will go to the target. Also, there is no way to 
-  #    authenticate call to the UAA is we decide to support add user, etc.  
-  #    The auth_token only goes to the :target endpoint and the is currently 
-  #    no support for a separate auth_token for the auth_target endpoint.
-  attr_reader   :authn_target
-
   # Error codes
   VMC_HTTP_ERROR_CODES = [ 400, 500 ]
 
@@ -279,7 +266,6 @@ class VMC::Client
   # User login/password
   ######################################################
 
-  # per-UAA login and return an auth_token
   # Auth token can be retained and used in creating
   # new clients, avoiding login.
   def login(user, password)
@@ -291,31 +277,58 @@ class VMC::Client
     end
   end
 
+  # NOTE: this is prototype code for adding support for a separate
+  # authentication endpoint. The goal here is to get support added
+  # with minimal changes to the overall VMC code. Some requests need to
+  # go to authen_target rather than :target, so, rather than change all 
+  # lower level calls to take the target, we just set @tmp_authn_target. 
+  # In the low level request method if @tmp_authn_target is non-nil, the request
+  # is send to that endpoint instead of :target and then the code ensures that 
+  # @tmp_authn_target is reset to nil after each request.
+  # TODO: Clean up situation for the above note.
+  # TODO: There is currently no way to authenticate call to the UAA to support 
+  #    add user, etc. The auth_token only goes to the :target endpoint and there
+  #    is currently no support for a separate auth_token for the authen_target 
+  #    endpoint.
+  
+  # get the authen_target for this client
+  # to enable testing of the UAA, we accept an authen_target from the 
+  # VMC_AUTHEN_ENDPOINT environment variable if set rather than query :target
+  def authen_target
+    ENV["VMC_AUTHEN_TARGET"] || info[:authenticationEndpoint]
+  end
+
+
   # get login info, including prompts for user credentials
   def login_info(authn_target)
-    @authn_target = authn_target
+    @tmp_authn_target = authn_target
     json_get(path(VMC::LOGIN_INFO_PATH))
   end
 
-  # login and return an auth_token
-  # Auth token can be retained and used in creating
-  # new clients, avoiding login.
+  # per-UAA login and return an auth_token
+  # Auth token can be retained and used in creating new clients, avoiding login.
   def login_to_uaa(authn_target, creds)
 
     return login(creds[:email], creds[:password]) unless authn_target
   
-    @authn_target = authn_target
+    @tmp_authn_target = authn_target
     
-    # we have an authn_target, do the OAuth2 dance to the UAA
-    uri = "#{VMC::LOGIN_TOKEN_PATH}?credentials=#{URI.encode(creds.to_json)}" +
-          "&client_id=vmc&response_type=token&scope=read" +
+    # we have tmp_authn_target, do the OAuth2 dance to the UAA
+
+    # TODO: UAA should accept POST of credentials
+
+#    uri = "#{path(VMC::LOGIN_TOKEN_PATH)}?credentials=#{URI.encode(creds.to_json)}" +
+#          "&client_id=vmc&response_type=token&scope=read" +
+#          "&redirect_uri=#{URI.encode('vmc://implicit_grant')}"
+#    status, body, headers = http_get(uri, 'application/json')
+
+    uri = "#{path(VMC::LOGIN_TOKEN_PATH)}?client_id=vmc&response_type=token&scope=read" +
           "&redirect_uri=#{URI.encode('vmc://implicit_grant')}"
+    body = "credentials=#{URI.encode(creds.to_json)}"
+    headers = {'Content-Type' => 'application/x-www-form-urlencoded', 
+          'Accept' => 'application/json'}
+    status, body, headers = request(:post, uri, nil, body, headers)
 
-    # TODO: fix this after UAA accepts POST of credentials
-    #status, body, headers = json_post(uri, {:credentials => creds})
-    status, body, headers = http_get(uri, 'application/json')
-
-    @authn_target = nil
     unless status == 302
       raise BadTarget, "received unexpected HTTP response from authn target: #{status}"
     end
@@ -329,7 +342,13 @@ class VMC::Client
     unless match_token = /access_token=(.+?)&/.match(loc) || /access_token=(.+)$/.match(loc)
       raise BadTarget, "received unexpected HTTP response from authn target: no access token"
     end
-    return @auth_token = "Bearer #{URI.decode(match_token[1])}"
+
+    # TODO: this is an OAuth2 bearer token and, at some point, the CC should 
+    # accept it in the header as "Bearer xxxxxxxxx". How should the token type 
+    # be handled? It could be stored with the token as part of the string, but
+    # only after the CC knows how to accept tokens with a type (as per OAuth2).
+    # @auth_token = "Bearer #{URI.decode(match_token[1])}"
+    @auth_token = "#{URI.decode(match_token[1])}"
   end
 
   # sets the password for the current logged user
@@ -425,7 +444,7 @@ class VMC::Client
 
   def request(method, path, content_type = nil, payload = nil, headers = {})
     headers = headers.dup
-    headers['AUTHORIZATION'] = @auth_token if @auth_token && !@authn_target
+    headers['AUTHORIZATION'] = @auth_token if @auth_token && !@tmp_authn_target
     headers['PROXY-USER'] = @proxy if @proxy
 
     if content_type
@@ -435,7 +454,7 @@ class VMC::Client
 
     req = {
       :method => method, 
-      :url => authn_target ? "#{@authn_target}/#{path}" : "#{@target}/#{path}",
+      :url => @tmp_authn_target ? "#{@tmp_authn_target}/#{path}" : "#{@target}/#{path}",
       :payload => payload, :headers => headers, :multipart => true
     }
     status, body, response_headers = perform_http_request(req)
@@ -449,6 +468,8 @@ class VMC::Client
     end
   rescue URI::Error, SocketError, Errno::ECONNREFUSED => e
     raise BadTarget, "Cannot access target (%s)" % [ e.message ]
+  ensure
+    @tmp_authn_target = nil
   end
 
   def request_failed?(status)

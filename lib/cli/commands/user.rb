@@ -12,13 +12,12 @@ module VMC::Cli::Command
     def login(email=nil)
       tries ||= 0
       creds ||= {}
-      #authn_target ||= client_info[:authenticationEndpoint]
-      authn_target = nil
+      authn_target = client.authen_target
       
       # get prompts from UAA or fill in default prompts for backward 
       # compatibility with pre-UAA CF instances
       prompts ||= authn_target ? client.login_info(authn_target)[:prompts] :
-        { :email => [:text, "Email"], :password => [:password, "Password"]}
+        { :email => ["text", "Email"], :password => ["password", "Password"]}
       
       unless prompts && prompts.length > 0
         err "invalid login info received from authentication endpoint #{authn_target}"
