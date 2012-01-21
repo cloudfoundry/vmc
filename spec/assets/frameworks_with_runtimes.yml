@@ -1,0 +1,28 @@
+---
+sinatra:
+  default: ruby18
+  runtimes:
+    ruby18:
+        version: "1.8.7" # FIXME change to 1.8.7-p334
+        description: "Ruby 1.8.7"
+        default: true
+    ruby19:
+        version: "1.9.2p180"
+        description: "Ruby 1.9.2"
+
+node:
+  default: node
+  runtimes:
+    node:
+        version: '0.4.12'
+        description: 'Node.js'
+        default: true
+
+java_web:
+  default: java
+  runtimes:
+    java:
+        description: "Java 6"
+        version: "1.6"
+        executable: "java"
+        default: true
