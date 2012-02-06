@@ -172,15 +172,15 @@ module VMC::Cli
       end
 
       def target_url(ctx = [])
+        return @client.target if @client
         find_symbol("target", ctx) || VMC::Cli::Config.target_url
       end
 
+      # http://api.foo.com -> foo.com
       def target_base(ctx = [])
-        if tgt = find_symbol("target", ctx)
-          VMC::Cli::Config.base_of(tgt)
-        else
-          VMC::Cli::Config.suggest_url
-        end
+        ha = target_url.split('.')
+        ha.shift
+        ha.join('.')
       end
 
       # Inject a client to help in testing.
