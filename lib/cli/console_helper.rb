@@ -132,7 +132,13 @@ module VMC::Cli
         lines = send_console_command cmd
         #Assumes the last line is a prompt
         prompt = lines.pop
-        lines.each {|line| display line if line != cmd}
+        lines.each {|line|
+          if line != cmd
+            #A single return value may contain escaped newlines within the string
+            output_lines = line.split("\\n")
+            output_lines.each {|output_line|  display output_line}
+          end
+        }
       rescue TimeoutError
         display "Timed out sending command to server.".red
       rescue EOFError
