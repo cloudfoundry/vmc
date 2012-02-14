@@ -91,6 +91,11 @@ Currently available vmc commands are:
     runtimes                                     Display the supported runtimes of the target system
     frameworks                                   Display the recognized frameworks of the target system
 
+  Micro Cloud Foundry
+    micro online                                 Configure Micro Cloud Foundry VM for online mode
+    mciro offline                                Configure Micro Cloud Foundry VM for offline mode
+    micro status                                 Display Micro Cloud Foundry VM status
+
   Misc
     aliases                                      List aliases
     alias <alias[=]command>                      Create an alias for a command
