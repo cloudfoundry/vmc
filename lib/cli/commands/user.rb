@@ -15,13 +15,13 @@ module VMC::Cli::Command
 
       if no_prompt
         err "Need a valid email" unless @options[:email]
-        creds[:email] = @options[:email]
+        creds[:username] = @options[:email]
         err "Need a password" unless @options[:password]
         creds[:password] = @options[:password]
       else
         client.login_prompts.each do |k, v|
           if v[0] == "text"
-            creds[k] = (k == :email && @options[:email]) ? @options[:email] : ask(v[1], :default => creds[k])
+            creds[k] = (k == :username && @options[:email]) ? @options[:email] : ask(v[1], :default => creds[k])
           elsif v[0] == "password"
             creds[k] = (k == :password && @options[:password]) ? @options[:password]: ask(v[1], :echo => "*")
           else

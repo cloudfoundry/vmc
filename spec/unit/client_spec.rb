@@ -46,6 +46,7 @@ describe 'VMC::Client' do
   it 'should allow login correctly and return an auth_token' do
     login_path = "#{@local_target}/users/#{@user}/tokens"
     stub_request(:post, login_path).to_return(File.new(spec_asset('login_success.txt')))
+    stub_request(:get, "#{@local_target}/#{VMC::INFO_PATH}").to_return(File.new(spec_asset('info_return.txt')))
     client = VMC::Client.new(@local_target)
     auth_token = client.login(@user, @password)
     client.target.should == @local_target
@@ -58,6 +59,7 @@ describe 'VMC::Client' do
   it 'should raise exception if login fails' do
     login_path = "#{@local_target}/users/#{@user}/tokens"
     stub_request(:post, login_path).to_return(File.new(spec_asset('login_fail.txt')))
+    stub_request(:get, "#{@local_target}/#{VMC::INFO_PATH}").to_return(File.new(spec_asset('info_return.txt')))
     client = VMC::Client.new(@local_target)
     expect { client.login(@user, @password) }.to raise_error(VMC::Client::TargetError)
   end
@@ -117,6 +119,7 @@ describe 'VMC::Client' do
   it 'should fail when trying to change password unless logged in' do
     login_path = "#{@local_target}/users/#{@user}/tokens"
     stub_request(:post, login_path).to_return(File.new(spec_asset('login_success.txt')))
+    stub_request(:get, "#{@local_target}/#{VMC::INFO_PATH}").to_return(File.new(spec_asset('info_return.txt')))
     user_info_path = "#{@local_target}/users/#{@user}"
     stub_request(:get, user_info_path).to_return(File.new(spec_asset('user_info.txt')))
     stub_request(:put, user_info_path)

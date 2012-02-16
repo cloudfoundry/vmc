@@ -275,7 +275,7 @@ class VMC::Client
   # test or legacy code and cannot collect other credentials from the user.
   def login(user, password)
 
-    return login_with_credentials(:email => user, :password => password) if authen_target
+    return login_with_credentials(:username => user, :password => password) if authen_target
 
     status, body, headers = json_post(path(VMC::USERS_PATH, user, "tokens"), {:password => password})
     response_info = json_parse(body)
@@ -307,7 +307,7 @@ class VMC::Client
   # get login info, including prompts for user credentials
   def login_prompts
     if !(@tmp_authn_target = authen_target)
-      prompts = { :email => ["text", "Email"], :password => ["password", "Password"] }
+      prompts = { :username => ["text", "Email"], :password => ["password", "Password"] }
     elsif !(prompts = json_get(path(VMC::LOGIN_INFO_PATH))[:prompts])
       raise BadTarget, "no login prompts received from authentication target #{authen_target}"
     end
@@ -318,7 +318,7 @@ class VMC::Client
   # Auth token can be retained and used in creating new clients, avoiding login.
   def login_with_credentials(creds)
 
-    return login(creds[:email], creds[:password]) unless authen_target
+    return login(creds[:username], creds[:password]) unless authen_target
 
     @tmp_authn_target = authen_target
 
