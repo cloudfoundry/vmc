@@ -21,7 +21,7 @@ class VMC::Client
     VMC::VERSION
   end
 
-  attr_reader   :target, :host, :user, :proxy, :auth_token
+  attr_reader   :target, :host, :user, :proxy, :auth_token, :authen_target
   attr_accessor :trace
 
   # Error codes
@@ -266,9 +266,17 @@ class VMC::Client
   # User login/password
   ######################################################
 
-  # Auth token can be retained and used in creating
-  # new clients, avoiding login.
+  # Auth token can be retained and used in creating new clients, avoiding login.
+  # this will only get pre-UAA tokens from the cloud controller
+  #
+  # This interface is left here to ease transition for pre-uaa code written to
+  # login using email/password to the cloud controller. It assumes the
+  # email/password credentials have been passed in from something like
+  # test or legacy code and cannot collect other credentials from the user.
   def login(user, password)
+
+    return login_with_credentials(:email => user, :password => password) if authen_target
+
     status, body, headers = json_post(path(VMC::USERS_PATH, user, "tokens"), {:password => password})
     response_info = json_parse(body)
     if response_info
@@ -280,76 +288,72 @@ class VMC::Client
   # NOTE: this is prototype code for adding support for a separate
   # authentication endpoint. The goal here is to get support added
   # with minimal changes to the overall VMC code. Some requests need to
-  # go to authen_target rather than :target, so, rather than change all 
-  # lower level calls to take the target, we just set @tmp_authn_target. 
+  # go to authen_target rather than :target, so, rather than change all
+  # lower level calls to take the target, we just set @tmp_authn_target before
+  # each request to the lower level functions.
   # In the low level request method if @tmp_authn_target is non-nil, the request
-  # is send to that endpoint instead of :target and then the code ensures that 
+  # is sent to that endpoint instead of :target and then the code ensures that
   # @tmp_authn_target is reset to nil after each request.
   # TODO: Clean up situation for the above note.
-  # TODO: There is currently no way to authenticate call to the UAA to support 
-  #    add user, etc. The auth_token only goes to the :target endpoint and there
-  #    is currently no support for a separate auth_token for the authen_target 
-  #    endpoint.
-  
-  # get the authen_target for this client
-  # to enable testing of the UAA, we accept an authen_target from the 
-  # VMC_AUTHEN_ENDPOINT environment variable if set rather than query :target
+  # TODO: There is currently no way to authenticate the call to the UAA to
+  #    support add user, etc. The auth_token only goes to the :target endpoint
+  #    and there is currently no support for a separate auth_token for the
+  #    authen_target endpoint.
+
   def authen_target
-    ENV["VMC_AUTHEN_TARGET"] || info[:authenticationEndpoint]
+    @authen_target ||= ENV["VMC_AUTHEN_TARGET"] || info[:authenticationEndpoint]
   end
 
-
   # get login info, including prompts for user credentials
-  def login_info(authn_target)
-    @tmp_authn_target = authn_target
-    json_get(path(VMC::LOGIN_INFO_PATH))
+  def login_prompts
+    if !(@tmp_authn_target = authen_target)
+      prompts = { :email => ["text", "Email"], :password => ["password", "Password"] }
+    elsif !(prompts = json_get(path(VMC::LOGIN_INFO_PATH))[:prompts])
+      raise BadTarget, "no login prompts received from authentication target #{authen_target}"
+    end
+    prompts
   end
 
   # per-UAA login and return an auth_token
   # Auth token can be retained and used in creating new clients, avoiding login.
-  def login_to_uaa(authn_target, creds)
+  def login_with_credentials(creds)
 
-    return login(creds[:email], creds[:password]) unless authn_target
-  
-    @tmp_authn_target = authn_target
-    
+    return login(creds[:email], creds[:password]) unless authen_target
+
+    @tmp_authn_target = authen_target
+
     # we have tmp_authn_target, do the OAuth2 dance to the UAA
-
-    # TODO: UAA should accept POST of credentials
-
-#    uri = "#{path(VMC::LOGIN_TOKEN_PATH)}?credentials=#{URI.encode(creds.to_json)}" +
-#          "&client_id=vmc&response_type=token&scope=read" +
-#          "&redirect_uri=#{URI.encode('vmc://implicit_grant')}"
-#    status, body, headers = http_get(uri, 'application/json')
-
     uri = "#{path(VMC::LOGIN_TOKEN_PATH)}?client_id=vmc&response_type=token&scope=read" +
           "&redirect_uri=#{URI.encode('vmc://implicit_grant')}"
     body = "credentials=#{URI.encode(creds.to_json)}"
-    headers = {'Content-Type' => 'application/x-www-form-urlencoded', 
+    headers = {'Content-Type' => 'application/x-www-form-urlencoded',
           'Accept' => 'application/json'}
     status, body, headers = request(:post, uri, nil, body, headers)
 
     unless status == 302
-      raise BadTarget, "received unexpected HTTP response from authn target: #{status}"
-    end
-    loc = headers[:location]
-    unless loc =~ /^vmc:\/\/implicit_grant#/ && loc =~ /token_type\=bearer/
-      raise BadTarget, "received unexpected HTTP response from authn target: expected bearer token via implicit grant"
-    end
-    if match_user = /user_name=(.+?)&/.match(loc) || /user_name=(.+)$/.match(loc)
-      @user = match_user[1]
-    end
-    unless match_token = /access_token=(.+?)&/.match(loc) || /access_token=(.+)$/.match(loc)
-      raise BadTarget, "received unexpected HTTP response from authn target: no access token"
+      raise BadTarget, "received unexpected HTTP response from authentication target #{authen_target}: #{status}"
     end
 
-    # TODO: this is an OAuth2 bearer token and, at some point, the CC should 
-    # accept it in the header as "Bearer xxxxxxxxx". How should the token type 
-    # be handled? It could be stored with the token as part of the string, but
-    # only after the CC knows how to accept tokens with a type (as per OAuth2).
-    # @auth_token = "Bearer #{URI.decode(match_token[1])}"
-    @auth_token = ENV["VMC_AUTHEN_TARGET"] ? "" : "bearer "
-    @auth_token += "#{URI.decode(match_token[1])}"
+    location = headers[:location].split('#')
+    unless location.length == 2 && location[0] == 'vmc://implicit_grant'
+      raise BadTarget, "received invalid response from authentication target #{authen_target}"
+    end
+
+    values = {}
+    location[1].split('&').each do |kvp|
+      mtch = /(.+?)=(.+)/.match(kvp)
+      values[mtch[1].to_sym] = mtch[2]
+    end
+
+    unless values[:token_type] && values[:access_token]
+      raise BadTarget, "received insufficient token information in response from authentication target #{authen_target}"
+    end
+
+    # If the ENV["VMC_AUTHEN_TARGET"] is set, we expect the CC does not know
+	# about UAA-style tokens -- therefore this may be a legacy mode token and
+	# we leave off the token type.
+    @auth_token = ENV["VMC_AUTHEN_TARGET"] ? "" : URI.decode(values[:token_type]) + " "
+    @auth_token += "#{URI.decode(values[:access_token])}"
   end
 
   # sets the password for the current logged user
@@ -454,7 +458,7 @@ class VMC::Client
     end
 
     req = {
-      :method => method, 
+      :method => method,
       :url => @tmp_authn_target ? "#{@tmp_authn_target}/#{path}" : "#{@target}/#{path}",
       :payload => payload, :headers => headers, :multipart => true
     }

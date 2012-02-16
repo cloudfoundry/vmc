@@ -12,38 +12,25 @@ module VMC::Cli::Command
     def login(email=nil)
       tries ||= 0
       creds ||= {}
-      authn_target = client.authen_target
-      
-      # get prompts from UAA or fill in default prompts for backward 
-      # compatibility with pre-UAA CF instances
-      prompts ||= authn_target ? client.login_info(authn_target)[:prompts] :
-        { :email => ["text", "Email"], :password => ["password", "Password"]}
-      
-      unless prompts && prompts.length > 0
-        err "invalid login info received from authentication endpoint #{authn_target}"
-      end
-      
+
       if no_prompt
-        if prompts.length != 2 || !prompts[:email] || !prompts[:password]
-          err "cannot support no_prompt option with this authentication endpoint #{authn_target}"
-        end 
         err "Need a valid email" unless @options[:email]
         creds[:email] = @options[:email]
         err "Need a password" unless @options[:password]
         creds[:password] = @options[:password]
       else
-        prompts.each do |k, v|
+        client.login_prompts.each do |k, v|
           if v[0] == "text"
             creds[k] = (k == :email && @options[:email]) ? @options[:email] : ask(v[1], :default => creds[k])
           elsif v[0] == "password"
             creds[k] = (k == :password && @options[:password]) ? @options[:password]: ask(v[1], :echo => "*")
           else
-            err "Unknown prompt type \"#{v[0]}\" received from #{authn_target}"
+            err "Unknown prompt type \"#{v[0]}\" received from #{client.authen_target}"
           end
         end
       end
 
-      login_and_save_token(authn_target, creds)
+      login_and_save_token(creds)
       say "Successfully logged into [#{target_url}]".green
     rescue VMC::Client::TargetError
       display "Problem with login, invalid account or login information.".red
@@ -78,11 +65,12 @@ module VMC::Cli::Command
 
     # NOTE: this is prototype code for adding support for a separate
     # authentication endpoint. The goal here is to get support added
-    # with minimal changes to the overall VMC code. 
+    # with minimal changes to the overall VMC code.
     # TODO: tokens should be stored in the token file as token
     # per target_url/authn_target
-    def login_and_save_token(authn_target, creds)
-      token = client.login_to_uaa(authn_target, creds)
+    def login_and_save_token(creds)
+      token = client.login_with_credentials(creds)
+	  puts token.inspect
       VMC::Cli::Config.store_token(token, @options[:token_file])
     end
 
