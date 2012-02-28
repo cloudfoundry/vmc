@@ -31,6 +31,8 @@ module VMC::Cli::Command
         switcher = ::Micro::Switcher::Linux.new(config)
       when :windows
         switcher = ::Micro::Switcher::Windows.new(config)
+      when :dummy # for testing only
+        switcher = ::Micro::Switcher::Dummy.new(config)
       else
         err "unsupported platform: #{Micro.platform}"
       end

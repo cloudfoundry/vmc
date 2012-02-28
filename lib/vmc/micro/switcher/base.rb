@@ -74,8 +74,6 @@ module VMC::Micro::Switcher
     end
   end
 
-  private
-
   def validate_nat(current_connection_type)
     if (current_connection_type != 'nat')
       if ask("Reconfigure Micro Cloud Foundry VM network to nat mode and reboot?", :choices => ['y', 'n']) == 'y'
