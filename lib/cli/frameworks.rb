@@ -9,9 +9,10 @@ module VMC::Cli
       'Rails'    => ['rails3',  { :mem => '256M', :description => 'Rails Application', :console=>true}],
       'Spring'   => ['spring',  { :mem => '512M', :description => 'Java SpringSource Spring Application'}],
       'Grails'   => ['grails',  { :mem => '512M', :description => 'Java SpringSource Grails Application'}],
-      'Lift'   =>   ['lift',    { :mem => '512M', :description => 'Scala Lift Application'}],
+      'Lift'     => ['lift',    { :mem => '512M', :description => 'Scala Lift Application'}],
       'JavaWeb'  => ['java_web',{ :mem => '512M', :description => 'Java Web Application'}],
       'Sinatra'  => ['sinatra', { :mem => '128M', :description => 'Sinatra Application'}],
+      'Rack'     => ['rack',    { :mem => '128M', :description => 'Rack Application'}],
       'Node'     => ['node',    { :mem => '64M',  :description => 'Node.js Application'}],
       'PHP'      => ['php',     { :mem => '128M', :description => 'PHP Application'}],
       'Erlang/OTP Rebar' => ['otp_rebar',  { :mem => '64M',  :description => 'Erlang/OTP Rebar Application'}],
@@ -70,7 +71,12 @@ module VMC::Cli
             else
               return Framework.lookup('JavaWeb')
             end
-          # Simple Ruby Apps
+
+          # Rack-based Apps
+          elsif !Dir.glob('config.ru').empty?
+            return Framework.lookup('Rack')
+
+          # Sinatra-based Apps
           elsif !Dir.glob('*.rb').empty?
             matched_file = nil
             Dir.glob('*.rb').each do |fname|
