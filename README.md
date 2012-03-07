@@ -51,6 +51,7 @@ MIT license, please see the LICENSE file.  All rights reserved._
       env <appname>                                List application environment variables
       env-add <appname> <variable[=]value>         Add an environment variable to an application
       env-del <appname> <variable>                 Delete an environment variable to an application
+      env-clone <src-app> <dest-app>               Clone environment variables from <src-app> application to <dest-app>
 
     Services
       services                                     Lists of services available and provisioned

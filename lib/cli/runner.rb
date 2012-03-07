@@ -332,6 +332,10 @@ class VMC::Cli::Runner
       usage('vmc env-del <appname> <variable>')
       set_cmd(:apps, :environment_del, 2)
 
+    when 'env-clone'
+      usage('vmc env-clone <src-app> <dest-app>')
+      set_cmd(:apps, :environment_clone, 2)
+      
     when 'create-service', 'create_service'
       usage('vmc create-service [service] [servicename] [appname] [--name servicename] [--bind appname]')
       set_cmd(:services, :create_service) if @args.size == 0

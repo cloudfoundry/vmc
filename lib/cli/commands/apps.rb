@@ -360,8 +360,42 @@ module VMC::Cli::Command
       end
     end
 
+    def environment_clone(src_app, dest_app)
+      begin
+        src  = client.app_info(src_app)
+        dest = client.app_info(dest_app)
+      rescue
+      end
+
+      err "Application '#{src_app}' does not exist" unless src
+      err "Application '#{dest_app}' does not exist" unless dest
+
+      src_env = get_env_as_hash(src)
+      dest_env = get_env_as_hash(dest)
+      err 'No environment variables to clone' unless src_env && !src_env.empty?
+
+      src_env.each do |k, v|
+        display "Cloning Environment Variable [#{k}=#{v}]: ", false
+        dest_env[k] = v
+        display 'OK'.green
+      end
+
+      dest[:env] = dest_env.map { |k, v| "#{k}=#{v}" }
+      client.update_app(dest_app, dest)
+      restart dest_app if dest[:state] == 'STARTED'
+    end
+
     private
 
+    def get_env_as_hash(app)
+      env = app[:env] || []
+      env.inject({}) do |h, kv|
+        k, v = kv.split('=')
+        h[k] = v
+        h
+      end
+    end
+      
     def app_exists?(appname)
       app_info = client.app_info(appname)
       app_info != nil
