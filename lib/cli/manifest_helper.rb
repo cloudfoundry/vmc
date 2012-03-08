@@ -127,10 +127,20 @@ module VMC::Cli::ManifestHelper
     ), "instances"
 
     unless manifest "services"
+      user_services = client.services
+      user_services.sort! {|a, b| a[:name] <=> b[:name] }
+
+      unless user_services.empty?
+        if ask "Bind existing services to '#{name}'?", :default => false
+          bind_services(user_services)
+        end
+      end
+
       services = client.services_info
       unless services.empty?
-        bind = ask "Would you like to bind any services to '#{name}'?", :default => false
-        bind_services(services.values.collect(&:keys).flatten) if bind
+        if ask "Create services to bind to '#{name}'?", :default => false
+          create_services(services.values.collect(&:keys).flatten)
+        end
       end
     end
 
@@ -157,7 +167,7 @@ module VMC::Cli::ManifestHelper
 
   # Detect the appropriate framework.
   def detect_framework(prompt_ok = true)
-    framework = VMC::Cli::Framework.detect(@application)
+    framework = VMC::Cli::Framework.detect(@application, frameworks_info)
     framework_correct = ask("Detected a #{framework}, is this correct?", :default => true) if prompt_ok && framework
     if prompt_ok && (framework.nil? || !framework_correct)
       display "#{"[WARNING]".yellow} Can't determine the Application Type." unless framework
@@ -197,20 +207,34 @@ module VMC::Cli::ManifestHelper
     runtime
   end
 
-  def bind_services(services)
+  def bind_services(user_services, chosen = 0)
+    svcname = ask(
+      "Which one?",
+      :indexed => true,
+      :choices => user_services.collect { |p| p[:name] })
+
+    svc = user_services.find { |p| p[:name] == svcname }
+
+    set svc[:vendor], "services", svcname, "type"
+
+    if chosen + 1 < user_services.size && ask("Bind another?", :default => false)
+      bind_services(user_services, chosen + 1)
+    end
+  end
+
+  def create_services(services)
     svcs = services.collect(&:to_s).sort!
 
-    display "The following system services are available"
     configure_service(
       ask(
-        "Please select the one you wish to provision",
+        "What kind of service?",
         :indexed => true,
         :choices => svcs
-      ).to_sym
+      )
     )
 
-    if ask "Would you like to bind another service?", :default => false
-      bind_services(services)
+    if ask "Create another?", :default => false
+      create_services(services)
     end
   end
 

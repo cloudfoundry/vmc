@@ -6,7 +6,7 @@ module VMC::Cli
     DEFAULT_MEM = '256M'
 
     FRAMEWORKS = {
-      'Rails'    => ['rails3',  { :mem => '256M', :description => 'Rails Application'}],
+      'Rails'    => ['rails3',  { :mem => '256M', :description => 'Rails Application', :console=>true}],
       'Spring'   => ['spring',  { :mem => '512M', :description => 'Java SpringSource Spring Application'}],
       'Grails'   => ['grails',  { :mem => '512M', :description => 'Java SpringSource Grails Application'}],
       'Lift'   =>   ['lift',    { :mem => '512M', :description => 'Scala Lift Application'}],
@@ -17,6 +17,7 @@ module VMC::Cli
       'Erlang/OTP Rebar' => ['otp_rebar',  { :mem => '64M',  :description => 'Erlang/OTP Rebar Application'}],
       'WSGI'     => ['wsgi',    { :mem => '64M',  :description => 'Python WSGI Application'}],
       'Django'   => ['django',  { :mem => '128M', :description => 'Python Django Application'}],
+      'Rack'     => ['rack', { :mem => '128M', :description => 'Rack Application'}]
     }
 
     class << self
@@ -29,12 +30,21 @@ module VMC::Cli
         return Framework.new(*FRAMEWORKS[name])
       end
 
-      def detect(path)
-        Dir.chdir(path) do
+      def lookup_by_framework(name)
+        FRAMEWORKS.each do |key,fw|
+          return Framework.new(fw[0], fw[1]) if fw[0] == name
+        end
+      end
 
+      def detect(path, available_frameworks)
+        Dir.chdir(path) do
           # Rails
           if File.exist?('config/environment.rb')
             return Framework.lookup('Rails')
+
+          # Rack
+          elsif File.exist?('config.ru') && available_frameworks.include?(["rack"])
+            return Framework.lookup('Rack')
 
           # Java
           elsif Dir.glob('*.war').first || File.exist?('WEB-INF/web.xml')
@@ -106,7 +116,7 @@ module VMC::Cli
 
     end
 
-    attr_reader   :name, :description, :memory
+    attr_reader   :name, :description, :memory, :console
     attr_accessor :exec
 
     alias :mem :memory
@@ -116,6 +126,7 @@ module VMC::Cli
       @memory = opts[:mem] || DEFAULT_MEM
       @description = opts[:description] || 'Unknown Application Type'
       @exec = opts[:exec]
+      @console = opts[:console] || false
     end
 
     def to_s

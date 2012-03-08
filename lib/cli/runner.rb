@@ -59,6 +59,11 @@ class VMC::Cli::Runner
 
       opts.on('-q', '--quiet')     {         @options[:quiet] = true }
 
+      # micro cloud options
+      opts.on('--vmx FILE')        { |file|  @options[:vmx] = file }
+      opts.on('--vmrun FILE')      { |file|  @options[:vmrun] = file }
+      opts.on('--save')            {         @options[:save] = true }
+
       # Don't use builtin zip
       opts.on('--no-zip')          {         @options[:nozip] = true }
       opts.on('--nozip')           {         @options[:nozip] = true }
@@ -238,10 +243,6 @@ class VMC::Cli::Runner
       usage('vmc restart <appname>')
       set_cmd(:apps, :restart, @args.size == 1 ? 1 : 0)
 
-    when 'rename'
-      usage('vmc rename <appname> <newname>')
-      set_cmd(:apps, :rename, 2)
-
     when 'mem'
       usage('vmc mem <appname> [memsize]')
       if @args.size == 2
@@ -380,6 +381,16 @@ class VMC::Cli::Runner
       set_cmd(:services, :tunnel, 1) if @args.size == 1
       set_cmd(:services, :tunnel, 2) if @args.size == 2
 
+    when 'rails-console'
+      usage('vmc rails-console <appname>')
+      set_cmd(:apps, :console, 1)
+
+    when 'micro'
+      usage('vmc micro <online|offline|status> [--password password] [--save] [--vmx file] [--vmrun executable]')
+      if %w[online offline status].include?(@args[0])
+          set_cmd(:micro, @args[0].to_sym, 1)
+      end
+
     when 'help'
       display_help if @args.size == 0
       @help_only = true
@@ -478,6 +489,7 @@ class VMC::Cli::Runner
     @exit_status = false
   rescue VMC::Client::TargetError, VMC::Client::NotFound, VMC::Client::BadTarget  => e
     puts e.message.red
+    puts e.backtrace
     @exit_status = false
   rescue VMC::Client::HTTPException => e
     puts e.message.red

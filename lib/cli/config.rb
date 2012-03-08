@@ -8,13 +8,13 @@ module VMC::Cli
   class Config
 
     DEFAULT_TARGET  = 'api.vcap.me'
-    DEFAULT_SUGGEST = 'vcap.me'
 
     TARGET_FILE    = '~/.vmc_target'
     TOKEN_FILE     = '~/.vmc_token'
     INSTANCES_FILE = '~/.vmc_instances'
     ALIASES_FILE   = '~/.vmc_aliases'
     CLIENTS_FILE   = '~/.vmc_clients'
+    MICRO_FILE     = '~/.vmc_micro'
 
     STOCK_CLIENTS = File.expand_path("../../../config/clients.yml", __FILE__)
 
@@ -42,12 +42,7 @@ module VMC::Cli
       end
 
       def suggest_url
-        return @suggest_url if @suggest_url
-        ha = target_url.split('.')
-        ha.shift
-        @suggest_url = ha.join('.')
-        @suggest_url = DEFAULT_SUGGEST if @suggest_url.empty?
-        @suggest_url
+        @suggest_url ||= base_of(target_url)
       end
 
       def store_target(target_host)
@@ -108,6 +103,18 @@ module VMC::Cli
         File.open(aliases_file, 'wb') {|f| f.write(aliases.to_yaml)}
       end
 
+      def micro
+        micro_file = File.expand_path(MICRO_FILE)
+        return {} unless File.exists? micro_file
+        contents = lock_and_read(micro_file).strip
+        JSON.parse(contents)
+      end
+
+      def store_micro(micro)
+        micro_file = File.expand_path(MICRO_FILE)
+        lock_and_write(micro_file, micro.to_json)
+      end
+
       def deep_merge(a, b)
         merge = proc do |_, old, new|
           if new.is_a?(Hash) and old.is_a?(Hash)
@@ -124,8 +131,9 @@ module VMC::Cli
         return @clients if @clients
 
         stock = YAML.load_file(STOCK_CLIENTS)
-        if File.exists? CLIENTS_FILE
-          user = YAML.load_file(CLIENTS_FILE)
+        clients = File.expand_path CLIENTS_FILE
+        if File.exists? clients
+          user = YAML.load_file(clients)
           @clients = deep_merge(stock, user)
         else
           @clients = stock

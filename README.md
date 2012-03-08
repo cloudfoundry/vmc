@@ -31,7 +31,6 @@ MIT license, please see the LICENSE file.  All rights reserved._
       stop  <appname>                              Stop the application
       restart <appname>                            Restart the application
       delete <appname>                             Delete the application
-      rename <appname> <newname>                   Rename the application
 
     Application Updates
       update <appname> [--path]                    Update the application bits
@@ -75,6 +74,15 @@ MIT license, please see the LICENSE file.  All rights reserved._
     System
       runtimes                                     Display the supported runtimes of the target system
       frameworks                                   Display the recognized frameworks of the target system
+
+    Micro Cloud Foundry
+      micro status                                 Display Micro Cloud Foundry VM status
+      mciro offline                                Configure Micro Cloud Foundry VM for offline mode
+      micro online                                 Configure Micro Cloud Foundry VM for online mode
+        [--vmx file]                               Path to micro.vmx
+        [--vmrun executable]                       Path to vmrun executable
+        [--password cleartext]                     Cleartext password for guest VM vcap user
+        [--save]                                   Save cleartext password in ~/.vmc_micro
 
     Misc
       aliases                                      List aliases
