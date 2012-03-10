@@ -350,8 +350,8 @@ class VMC::Client
     end
 
     # If the ENV["VMC_AUTHEN_TARGET"] is set, we expect the CC does not know
-	# about UAA-style tokens -- therefore this may be a legacy mode token and
-	# we leave off the token type.
+    # about UAA-style tokens -- therefore this may be a legacy mode token and
+    # we leave off the token type.
     @auth_token = ENV["VMC_AUTHEN_TARGET"] ? "" : URI.decode(values[:token_type]) + " "
     @auth_token += "#{URI.decode(values[:access_token])}"
   end

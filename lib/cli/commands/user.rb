@@ -70,7 +70,6 @@ module VMC::Cli::Command
     # per target_url/authn_target
     def login_and_save_token(creds)
       token = client.login_with_credentials(creds)
-	  puts token.inspect
       VMC::Cli::Config.store_token(token, @options[:token_file])
     end
 
