@@ -301,7 +301,7 @@ class VMC::Client
   #    authen_target endpoint.
 
   def authen_target
-    @authen_target ||= ENV["VMC_AUTHEN_TARGET"] || info[:authenticationEndpoint]
+    @authen_target ||= ENV["VMC_AUTHEN_TARGET"] || info[:authorization_endpoint]
   end
 
   # get login info, including prompts for user credentials
@@ -324,7 +324,7 @@ class VMC::Client
 
     # we have tmp_authn_target, do the OAuth2 dance to the UAA
     uri = "#{path(VMC::LOGIN_TOKEN_PATH)}?client_id=vmc&response_type=token&scope=read" +
-          "&redirect_uri=#{URI.encode('vmc://implicit_grant')}"
+          "&redirect_uri=#{URI.encode('http://uaa.cloudfoundry.com/redirect/vmc')}"
     body = "credentials=#{URI.encode(creds.to_json)}"
     headers = {'Content-Type' => 'application/x-www-form-urlencoded',
           'Accept' => 'application/json'}
@@ -335,7 +335,7 @@ class VMC::Client
     end
 
     location = headers[:location].split('#')
-    unless location.length == 2 && location[0] == 'vmc://implicit_grant'
+    unless location.length == 2 && location[0] == 'http://uaa.cloudfoundry.com/redirect/vmc'
       raise BadTarget, "received invalid response from authentication target #{authen_target}"
     end
 
