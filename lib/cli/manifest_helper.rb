@@ -82,20 +82,7 @@ module VMC::Cli::ManifestHelper
     name = manifest("name") ||
       set(ask("Application Name", :default => manifest("name")), "name")
 
-    url_template = manifest("url") || DEFAULTS["url"]
-    url_resolved = url_template.dup
-    resolve_lexically(url_resolved)
 
-    url = ask("Application Deployed URL", :default => url_resolved)
-
-    url = url_template if url == url_resolved
-
-    # common error case is for prompted users to answer y or Y or yes or
-    # YES to this ask() resulting in an unintended URL of y. Special
-    # case this common error
-    url = DEFAULTS["url"] if YES_SET.member? url
-
-    set url, "url"
 
     unless manifest "framework"
       framework = detect_framework
@@ -110,11 +97,45 @@ module VMC::Cli::ManifestHelper
       )
     end
 
+    default_runtime = manifest "runtime"
+    default_runtime = VMC::Cli::Framework.detect_default_runtime(@application,manifest("framework", "name")) if not default_runtime
+    #Don't allow user to choose if default runtime comes back nil.
+    #Runtime will be chosen on the server side based on framework
+    set(detect_runtime(default_runtime), "runtime") if default_runtime
+
+    default_command = manifest "command"
+    set ask("Start Command", :default => default_command), "command" if VMC::Cli::Framework.require_start_command(manifest("framework", "name"))
+
+    url_template = manifest("url") || DEFAULTS["url"]
+    url_resolved = url_template.dup
+    resolve_lexically(url_resolved)
+
+    if !VMC::Cli::Framework.require_url(manifest("framework", "name"))
+      url_resolved = "None"
+    end
+    url = ask("Application Deployed URL", :default => url_resolved)
+
+    if url == url_resolved && url != "None"
+      url = url_template
+    end
+
+    # common error case is for prompted users to answer y or Y or yes or
+    # YES to this ask() resulting in an unintended URL of y. Special
+    # case this common error
+    url = url_resolved if YES_SET.member? url
+
+    if(url == "None")
+      url = nil
+    end
+
+    set url, "url"
+
+    default_mem = manifest("mem")
+    default_mem = VMC::Cli::Framework.detect_default_memory(manifest("framework","name"),manifest("runtime")) if not default_mem
     set ask(
       "Memory reservation",
       :default =>
-        manifest("mem") ||
-          manifest("framework", "info", "mem") ||
+          default_mem ||
           DEFAULTS["mem"],
       :choices => ["128M", "256M", "512M", "1G", "2G"]
     ), "mem"
@@ -182,6 +203,26 @@ module VMC::Cli::ManifestHelper
     end
 
     framework
+  end
+
+  # Detect the appropriate runtime.
+  def detect_runtime(default, prompt_ok=true)
+    runtime = nil
+    runtime_keys=[]
+    runtimes_info.keys.each {|runtime_key| runtime_keys << runtime_key.dup }
+    runtime_keys.sort!
+    runtime_keys << "none"
+    if prompt_ok
+      runtime =  ask(
+          "Select Runtime",
+          :indexed => true,
+          :default => default,
+          :choices => runtime_keys
+      )
+      display "Selected #{runtime}"
+    end
+    runtime = nil if runtime == "none"
+    runtime
   end
 
   def bind_services(user_services, chosen = 0)
