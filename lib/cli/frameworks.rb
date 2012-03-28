@@ -77,12 +77,6 @@ module VMC::Cli
               return f
             end
 
-          # Node.js
-          elsif !Dir.glob('*.js').empty?
-            if File.exist?('server.js') || File.exist?('app.js') || File.exist?('index.js') || File.exist?('main.js')
-              return Framework.lookup('Node')
-            end
-
           # PHP
           elsif !Dir.glob('*.php').empty?
             return Framework.lookup('PHP')
@@ -103,6 +97,12 @@ module VMC::Cli
           # .Net
           elsif !Dir.glob('web.config').empty?
             return Framework.lookup('dotNet')
+
+          # Node.js
+          elsif !Dir.glob('*.js').empty?
+            if File.exist?('server.js') || File.exist?('app.js') || File.exist?('index.js') || File.exist?('main.js')
+              return Framework.lookup('Node')
+            end
 
           end
         end
