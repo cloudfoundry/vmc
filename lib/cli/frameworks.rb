@@ -18,7 +18,8 @@ module VMC::Cli
       'Erlang/OTP Rebar' => ['otp_rebar',  { :mem => '64M',  :description => 'Erlang/OTP Rebar Application'}],
       'WSGI'     => ['wsgi',    { :mem => '64M',  :description => 'Python WSGI Application'}],
       'Django'   => ['django',  { :mem => '128M', :description => 'Python Django Application'}],
-      'Rack'     => ['rack', { :mem => '128M', :description => 'Rack Application'}]
+      'Rack'     => ['rack', { :mem => '128M', :description => 'Rack Application'}],
+      'Play'     => ['play',  { :mem => '128M', :description => 'Play Framework Application'}]
     }
 
     class << self
@@ -49,6 +50,8 @@ module VMC::Cli
         if !File.directory? path
           if path.end_with?('.war')
             return detect_framework_from_war path
+          elsif path.end_with?('.zip')
+            return detect_framework_from_zip path, available_frameworks
           elsif available_frameworks.include?(["standalone"])
             return Framework.lookup('Standalone')
           else
@@ -108,6 +111,11 @@ module VMC::Cli
           # Python
           elsif !Dir.glob('wsgi.py').empty?
             return Framework.lookup('WSGI')
+
+          # Play or Standalone Apps
+          elsif Dir.glob('*.zip').first
+            zip_file = Dir.glob('*.zip').first
+            return detect_framework_from_zip zip_file, available_frameworks
           end
 
           # Default to Standalone if no other match was made
@@ -137,6 +145,15 @@ module VMC::Cli
           return Framework.lookup('Spring')
         else
           return Framework.lookup('JavaWeb')
+        end
+      end
+
+      def detect_framework_from_zip(zip_file, available_frameworks)
+        contents = ZipUtil.entry_lines(zip_file)
+        if available_frameworks.include?(["play"]) && contents =~ /lib\/play\..*\.jar/
+          return Framework.lookup('Play')
+        elsif available_frameworks.include?(["standalone"])
+          return Framework.lookup('Standalone')
         end
       end
     end
