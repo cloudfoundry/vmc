@@ -9,7 +9,7 @@ module VMC::Cli
         @default_runtimes = {}
         @framework_runtimes = {}
         frameworks_with_runtimes.each_pair do |framework, runtimes_info|
-          default_rt_name = runtimes_info[:default]
+          default_rt_name = runtimes_info[:default] || runtimes_info[:runtimes].keys.first
           default_rt_info = runtimes_info[:runtimes][default_rt_name]
           @default_runtimes[framework] = VMC::Cli::Runtime.new(default_rt_name, default_rt_info)
           runtimes = {}
