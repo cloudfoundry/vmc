@@ -20,6 +20,7 @@ module VMC
   module Cli
     autoload :Config,         "#{ROOT}/cli/config"
     autoload :Framework,      "#{ROOT}/cli/frameworks"
+    autoload :Runtime,        "#{ROOT}/cli/runtimes"
     autoload :Runner,         "#{ROOT}/cli/runner"
     autoload :ZipUtil,        "#{ROOT}/cli/zip_util"
     autoload :ServicesHelper, "#{ROOT}/cli/services_helper"

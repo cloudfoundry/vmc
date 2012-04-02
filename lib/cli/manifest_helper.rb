@@ -108,6 +108,8 @@ module VMC::Cli::ManifestHelper
         "framework",
         "info"
       )
+      runtime = select_runtime framework
+      set runtime.name, "runtime"
     end
 
     set ask(
@@ -182,6 +184,27 @@ module VMC::Cli::ManifestHelper
     end
 
     framework
+  end
+
+  def select_runtime(framework, prompt_ok = true)
+    framework_name = framework.name
+    VMC::Cli::Runtime.load_all_runtimes frameworks_with_runtimes_info
+    runtime = VMC::Cli::Runtime.default_runtime_for framework_name
+    return runtime if !VMC::Cli::Runtime.has_multi_runtime? framework_name
+    runtimes = VMC::Cli::Runtime.runtimes_for framework_name
+    if ask "Use #{runtime} as a default runtime, Would you like to use other runtime?", :default => false
+      runtime = VMC::Cli::Runtime.lookup(
+        ask(
+          "Select Runtime",
+          :indexed => true,
+          :default => runtime,
+          :choices => runtimes.keys
+        )
+      )
+      display "Selected #{runtime}"
+    end
+
+    runtime
   end
 
   def bind_services(user_services, chosen = 0)

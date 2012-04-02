@@ -221,6 +221,27 @@ module VMC::Cli
         end
         @frameworks
       end
+
+      def frameworks_with_runtimes_info
+        return @frameworks_with_runtimes if @frameworks_with_runtimes
+        info = client_info
+        @frameworks_with_runtimes = {}
+        if info[:frameworks]
+          info[:frameworks].each_value do |f|
+            runtimes = {}
+            runtimes[:runtimes] = {}
+            next unless f[:runtimes]
+            f[:runtimes].each do |r|
+              runtime_name = r[:name]
+              runtimes[:default] = runtime_name if r[:default]
+              runtimes[:runtimes][runtime_name] = r
+            end
+            @frameworks_with_runtimes[f[:name]] = runtimes
+          end
+        end
+        @frameworks_with_runtimes
+      end
+
     end
   end
 end
