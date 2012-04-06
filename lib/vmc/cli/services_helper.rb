@@ -1,7 +1,6 @@
-
 module VMC::Cli
   module ServicesHelper
-    def display_system_services(services=nil)
+    def display_system_services(services = nil)
       services ||= client.services_info
 
       display "\n============== System Services ==============\n\n"
@@ -16,7 +15,7 @@ module VMC::Cli
           end
         end
       end
-      displayed_services.sort! { |a, b| a.first.to_s <=> b.first.to_s}
+      displayed_services.sort! { |a, b| a.first.to_s <=> b.first.to_s }
 
       services_table = table do |t|
         t.headings = 'Service', 'Version', 'Description'
@@ -25,10 +24,10 @@ module VMC::Cli
       display services_table
     end
 
-    def display_provisioned_services(services=nil)
+    def display_provisioned_services(services = nil)
       services ||= client.services
       display "\n=========== Provisioned Services ============\n\n"
-      display_provisioned_services_table(services)
+      display_provisioned_services_table services
     end
 
     def display_provisioned_services_table(services)
@@ -42,30 +41,30 @@ module VMC::Cli
       display services_table
     end
 
-    def create_service_banner(service, name, display_name=false)
+    def create_service_banner(service, name, display_name = false)
       sn = " [#{name}]" if display_name
       display "Creating Service#{sn}: ", false
-      client.create_service(service, name)
+      client.create_service service, name
       display 'OK'.green
     end
 
-    def bind_service_banner(service, appname, check_restart=true)
+    def bind_service_banner(service, appname, check_restart = true)
       display "Binding Service [#{service}]: ", false
-      client.bind_service(service, appname)
+      client.bind_service service, appname
       display 'OK'.green
-      check_app_for_restart(appname) if check_restart
+      check_app_for_restart appname if check_restart
     end
 
-    def unbind_service_banner(service, appname, check_restart=true)
+    def unbind_service_banner(service, appname, check_restart = true)
       display "Unbinding Service [#{service}]: ", false
-      client.unbind_service(service, appname)
+      client.unbind_service service, appname
       display 'OK'.green
-      check_app_for_restart(appname) if check_restart
+      check_app_for_restart appname if check_restart
     end
 
     def delete_service_banner(service)
       display "Deleting service [#{service}]: ", false
-      client.delete_service(service)
+      client.delete_service service
       display 'OK'.green
     end
 
@@ -75,9 +74,9 @@ module VMC::Cli
     end
 
     def check_app_for_restart(appname)
-      app = client.app_info(appname)
-      cmd = VMC::Cli::Command::Apps.new(@options)
-      cmd.restart(appname) if app[:state] == 'STARTED'
+      app = client.app_info appname
+      cmd = VMC::Cli::Command::Apps.new @options
+      cmd.restart appname if app[:state] == 'STARTED'
     end
 
   end

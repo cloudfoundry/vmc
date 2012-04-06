@@ -5,35 +5,35 @@ module VMC::Cli
   module ConsoleHelper
 
     def console_connection_info(appname)
-      app = client.app_info(appname)
-      fw = VMC::Cli::Framework.lookup_by_framework(app[:staging][:model])
-      if !fw.console
+      app = client.app_info appname
+      fw = VMC::Cli::Framework.lookup_by_framework app[:staging][:model]
+      unless fw.console
         err "'#{appname}' is a #{fw.name} application.  " +
           "Console access is not supported for #{fw.name} applications."
       end
-      instances_info_envelope = client.app_instances(appname)
+      instances_info_envelope = client.app_instances appname
       instances_info_envelope = {} if instances_info_envelope.is_a?(Array)
 
       instances_info = instances_info_envelope[:instances] || []
       err "No running instances for [#{appname}]" if instances_info.empty?
 
       entry = instances_info[0]
-      if !entry[:console_port]
+      unless entry[:console_port]
         begin
-          client.app_files(appname, '/app/cf-rails-console')
+          client.app_files appname, '/app/cf-rails-console'
           err "Console port not provided for [#{appname}].  Try restarting the app."
         rescue VMC::Client::TargetError, VMC::Client::NotFound
           err "Console access not supported for [#{appname}]. " +
             "Please redeploy your app to enable support."
         end
       end
-      conn_info = {'hostname' => entry[:console_ip], 'port' => entry[:console_port]}
+      {'hostname' => entry[:console_ip], 'port' => entry[:console_port]}
     end
 
     def start_local_console(port, appname)
-      auth_info = console_credentials(appname)
+      auth_info = console_credentials appname
       display "Connecting to '#{appname}' console: ", false
-      prompt = console_login(auth_info, port)
+      prompt = console_login auth_info, port
       display "OK".green
       display "\n"
       initialize_readline
@@ -41,22 +41,22 @@ module VMC::Cli
     end
 
     def console_login(auth_info, port)
-      if !auth_info["username"] || !auth_info["password"]
+      unless auth_info["username"] && auth_info["password"]
         err "Unable to verify console credentials."
       end
-      @telnet_client = telnet_client(port)
+      @telnet_client = telnet_client port
       prompt = nil
       err_msg = "Login attempt timed out."
       5.times do
         begin
-          results = @telnet_client.login("Name"=>auth_info["username"],
-            "Password"=>auth_info["password"]) {|line|
+          results = @telnet_client.login("Name" => auth_info["username"],
+            "Password" => auth_info["password"]) do |line|
             if line =~ /[$%#>] \z/n
               prompt = line
             elsif line =~ /Login failed/
               err_msg = line
             end
-          }
+          end
           break
         rescue TimeoutError
           sleep 1
@@ -64,7 +64,7 @@ module VMC::Cli
           #This may happen if we login right after app starts
           close_console
           sleep 5
-          @telnet_client = telnet_client(port)
+          @telnet_client = telnet_client port
         end
         display ".", false
       end
@@ -76,13 +76,12 @@ module VMC::Cli
     end
 
     def send_console_command(cmd)
-      results = @telnet_client.cmd(cmd)
-      results.split("\n")
+      results = @telnet_client.cmd cmd
+      results.split "\n"
     end
 
     def console_credentials(appname)
-      content = client.app_files(appname, '/app/cf-rails-console/.consoleaccess', '0')
-      YAML.load(content)
+      YAML.load client.app_files(appname, '/app/cf-rails-console/.consoleaccess', '0')
     end
 
     def close_console
@@ -91,8 +90,7 @@ module VMC::Cli
 
     def console_tab_completion_data(cmd)
       begin
-        results = @telnet_client.cmd("String"=> cmd + "\t", "Match"=>/\S*\n$/, "Timeout"=>10)
-        results.chomp.split(",")
+        @telnet_client.cmd "String" => cmd + "\t", "Match" => /\S*\n$/, "Timeout" => 10).chomp.split ","
       rescue TimeoutError
         [] #Just return empty results if timeout occurred on tab completion
       end
@@ -100,11 +98,11 @@ module VMC::Cli
 
     private
     def telnet_client(port)
-      Net::Telnet.new({"Port"=>port, "Prompt"=>/[$%#>] \z|Login failed/n, "Timeout"=>30, "FailEOF"=>true})
+      Net::Telnet.new "Port" => port, "Prompt" => /[$%#>] \z|Login failed/n, "Timeout" => 30, "FailEOF" => true
     end
 
     def readline_with_history(prompt)
-      line = Readline.readline(prompt, true)
+      line = Readline.readline prompt, true
       return '' if line.nil?
       #Don't keep blank or repeat commands in history
       if line =~ /^\s*$/ or Readline::HISTORY.to_a[-2] == line
@@ -114,16 +112,14 @@ module VMC::Cli
     end
 
     def run_console(prompt)
-      while(cmd = readline_with_history(prompt))
-        if(cmd == "exit" || cmd == "quit")
+      while cmd = readline_with_history(prompt)
+        if cmd == "exit" || cmd == "quit"
           #TimeoutError expected, as exit doesn't return anything
-          @telnet_client.cmd("String"=>cmd,"Timeout"=>1) rescue TimeoutError
+          @telnet_client.cmd("String" => cmd, "Timeout" => 1) rescue TimeoutError
           close_console
           break
         end
-        if !cmd.empty?
-          prompt = send_console_command_display_results(cmd, prompt)
-        end
+        prompt = send_console_command_display_results cmd, prompt unless cmd.empty?
       end
     end
 
@@ -132,7 +128,7 @@ module VMC::Cli
         lines = send_console_command cmd
         #Assumes the last line is a prompt
         prompt = lines.pop
-        lines.each {|line| display line if line != cmd}
+        lines.each { |line| display line unless line == cmd }
       rescue TimeoutError
         display "Timed out sending command to server.".red
       rescue EOFError
@@ -142,16 +138,14 @@ module VMC::Cli
     end
 
     def initialize_readline
-      if Readline.respond_to?("basic_word_break_characters=")
-        Readline.basic_word_break_characters= " \t\n`><=;|&{("
+      if Readline.respond_to? :basic_word_break_characters=
+        Readline.basic_word_break_characters = " \t\n`><=;|&{("
       end
       Readline.completion_append_character = nil
       #Assumes that sending a String ending with tab will return a non-empty
       #String of comma-separated completion options, terminated by a new line
       #For example, "app.\t" might result in "to_s,nil?,etc\n"
-      Readline.completion_proc = proc {|s|
-        console_tab_completion_data s
-      }
+      Readline.completion_proc = proc { |s| console_tab_completion_data s }
     end
   end
 end
