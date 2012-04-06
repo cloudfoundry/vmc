@@ -198,7 +198,7 @@ describe 'VMC::Cli::ConsoleHelper' do
   it 'should properly initialize Readline for tab completion' do
     @client.should_receive(:app_files).with("foo", '/app/cf-rails-console/.consoleaccess', '0').and_return(IO.read(spec_asset('console_access.txt')))
     @telnet_client.should_receive(:login).with({"Name"=>"cfuser", "Password"=>"testpw"}).and_yield("irb():001:0> ")
-    Readline.should_receive(:respond_to?).with("basic_word_break_characters=").and_return(true)
+    Readline.should_receive(:respond_to?).with(:basic_word_break_characters=).and_return(true)
     Readline.should_receive(:basic_word_break_characters=).with(" \t\n`><=;|&{(")
     Readline.should_receive(:completion_append_character=).with(nil)
     Readline.should_receive(:completion_proc=)

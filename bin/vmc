@@ -1,6 +1,4 @@
 #!/usr/bin/env ruby
 
-require File.expand_path('../../lib/cli', __FILE__)
-
-VMC::Cli::Runner.run(ARGV.dup)
-
+require 'vmc/cli'
+VMC::Cli::Runner.run ARGV.dup

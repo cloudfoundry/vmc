@@ -27,7 +27,7 @@ module VMC::Cli
       end
 
       def lookup(name)
-        return Framework.new(*FRAMEWORKS[name])
+        Framework.new(*FRAMEWORKS[name])
       end
 
       def lookup_by_framework(name)
@@ -50,10 +50,10 @@ module VMC::Cli
           elsif Dir.glob('*.war').first || File.exist?('WEB-INF/web.xml')
             war_file = Dir.glob('*.war').first
 
-            if war_file
-              contents = ZipUtil.entry_lines(war_file)
+            contents = if war_file
+              ZipUtil.entry_lines war_file
             else
-              contents = Dir['**/*'].join("\n")
+              Dir['**/*'].join("\n")
             end
 
             # Spring/Lift Variations
@@ -75,11 +75,12 @@ module VMC::Cli
             matched_file = nil
             Dir.glob('*.rb').each do |fname|
               next if matched_file
-              File.open(fname, 'r') do |f|
+              File.open fname, 'r' do |f|
                 str = f.read # This might want to be limited
-                matched_file = fname if (str && str.match(/^\s*require[\s\(]*['"]sinatra['"]/))
+                matched_file = fname if str && str.match(/^\s*require[\s\(]*['"]sinatra['"]/)
               end
             end
+
             if matched_file
               f = Framework.lookup('Sinatra')
               f.exec = "ruby #{matched_file}"
@@ -121,7 +122,7 @@ module VMC::Cli
 
     alias :mem :memory
 
-    def initialize(framework=nil, opts={})
+    def initialize(framework = nil, opts = {})
       @name = framework || DEFAULT_FRAMEWORK
       @memory = opts[:mem] || DEFAULT_MEM
       @description = opts[:description] || 'Unknown Application Type'

@@ -1,11 +1,10 @@
-
 $:.unshift('./lib')
 require 'bundler'
 require 'bundler/setup'
 require 'vmc'
-require 'cli'
+require 'vmc/cli'
 
-require 'spec'
+require 'rspec'
 require 'webmock/rspec'
 
 def spec_asset(filename)

@@ -1,7 +1,6 @@
-
 $:.unshift File.expand_path("../lib", __FILE__)
 
-require 'cli/version'
+require 'vmc/cli/version'
 
 spec = Gem::Specification.new do |s|
   s.name = "vmc"
@@ -24,7 +23,7 @@ spec = Gem::Specification.new do |s|
   s.add_dependency "uuidtools", "~> 2.1.0"
 
   s.add_development_dependency "rake"
-  s.add_development_dependency "rspec",   "~> 1.3.0"
+  s.add_development_dependency "rspec",   "~> 2.8"
   s.add_development_dependency "webmock", "= 1.5.0"
 
   s.bindir  = "bin"
