@@ -16,7 +16,7 @@ module VMC::Cli
     CLIENTS_FILE   = '~/.vmc_clients'
     MICRO_FILE     = '~/.vmc_micro'
 
-    STOCK_CLIENTS = File.expand_path("../../../config/clients.yml", __FILE__)
+    STOCK_CLIENTS = File.expand_path("../../../../config/clients.yml", __FILE__)
 
     class << self
       attr_accessor :colorize
