@@ -90,7 +90,7 @@ module VMC::Cli
 
     def console_tab_completion_data(cmd)
       begin
-        @telnet_client.cmd "String" => cmd + "\t", "Match" => /\S*\n$/, "Timeout" => 10).chomp.split ","
+        @telnet_client.cmd("String" => cmd + "\t", "Match" => /\S*\n$/, "Timeout" => 10).chomp.split ","
       rescue TimeoutError
         [] #Just return empty results if timeout occurred on tab completion
       end

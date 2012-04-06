@@ -32,7 +32,7 @@ module VMC::Cli::ManifestHelper
       end
 
       unless single
-        if where == File.expand_path "../", manifest_file
+        if where == File.expand_path("../", manifest_file)
           ordered_by_deps(all_apps).each do |path, info|
             app = File.expand_path "../" + path, manifest_file
             @application = app
@@ -100,12 +100,14 @@ module VMC::Cli::ManifestHelper
     unless manifest "framework"
       framework = detect_framework
       set framework.name, "framework", "name"
-      set { "mem"         => framework.mem,
-            "description" => framework.description,
-            "exec"        => framework.exec
-          },
-          "framework",
-          "info"
+      set({
+        "mem"         => framework.mem,
+        "description" => framework.description,
+        "exec"        => framework.exec
+        },
+        "framework",
+        "info"
+        )
     end
 
     set ask(

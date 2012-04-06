@@ -239,7 +239,8 @@ class VMC::Client
 
   # Checks that the target is valid
   def target_valid?
-    return false unless descr = info && descr[:name] && descr[:build] && descr[:version] && descr[:support]
+    return false unless descr = info
+    return false unless descr[:name] && descr[:build] && descr[:version] && descr[:support]
     true
   rescue
     false
@@ -263,7 +264,7 @@ class VMC::Client
   # new clients, avoiding login.
   def login(user, password)
     _, body, _ = json_post path(VMC::USERS_PATH, user, "tokens"), :password => password
-    return unless response_info = json_parse body
+    return unless response_info = json_parse(body)
     @user = user
     @auth_token = response_info[:token]
   end
@@ -271,7 +272,7 @@ class VMC::Client
   # sets the password for the current logged user
   def change_password(new_password)
     check_login_status
-    return unless user_info = json_get path(VMC::USERS_PATH, @user)
+    return unless user_info = json_get(path(VMC::USERS_PATH, @user))
     user_info[:password] = new_password
     json_put(path(VMC::USERS_PATH, @user), user_info)
   end
