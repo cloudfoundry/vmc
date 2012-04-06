@@ -19,9 +19,7 @@ module VMC::Cli
         @prompt_ok = !no_prompt
 
         # Suppress colorize on Windows systems for now.
-        if WINDOWS
-          VMC::Cli::Config.colorize = false
-        end
+        VMC::Cli::Config.colorize = !VMC.windows?
 
         @path = @options[:path] || '.'
 
