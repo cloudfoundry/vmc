@@ -1,5 +1,3 @@
-WINDOWS = !!(RUBY_PLATFORM =~ /mingw|mswin32|cygwin/)
-
 module VMC
   autoload :Client,           "vmc/client"
   autoload :Micro,            "vmc/micro"
