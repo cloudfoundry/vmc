@@ -1,7 +1,6 @@
-
 $:.unshift File.expand_path("../lib", __FILE__)
 
-require 'cli/version'
+require 'vmc/cli/version'
 
 spec = Gem::Specification.new do |s|
   s.name = "vmc"
