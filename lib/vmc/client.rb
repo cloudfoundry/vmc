@@ -21,7 +21,7 @@ class VMC::Client
     VMC::VERSION
   end
 
-  attr_reader   :target, :host, :user, :proxy, :auth_token
+  attr_reader   :target, :host, :user, :proxy, :auth_token, :authen_target
   attr_accessor :trace
 
   # Error codes
@@ -266,16 +266,94 @@ class VMC::Client
   # User login/password
   ######################################################
 
-  # login and return an auth_token
-  # Auth token can be retained and used in creating
-  # new clients, avoiding login.
+  # Auth token can be retained and used in creating new clients, avoiding login.
+  # this will only get pre-UAA tokens from the cloud controller
+  #
+  # This interface is left here to ease transition for pre-uaa code written to
+  # login using email/password to the cloud controller. It assumes the
+  # email/password credentials have been passed in from something like
+  # test or legacy code and cannot collect other credentials from the user.
   def login(user, password)
+
+    return login_with_credentials(:username => user, :password => password) if authen_target
+
     status, body, headers = json_post(path(VMC::USERS_PATH, user, "tokens"), {:password => password})
     response_info = json_parse(body)
     if response_info
       @user = user
       @auth_token = response_info[:token]
     end
+  end
+
+  # NOTE: this is prototype code for adding support for a separate
+  # authentication endpoint. The goal here is to get support added
+  # with minimal changes to the overall VMC code. Some requests need to
+  # go to authen_target rather than :target, so, rather than change all
+  # lower level calls to take the target, we just set @tmp_authn_target before
+  # each request to the lower level functions.
+  # In the low level request method if @tmp_authn_target is non-nil, the request
+  # is sent to that endpoint instead of :target and then the code ensures that
+  # @tmp_authn_target is reset to nil after each request.
+  # TODO: Clean up situation for the above note.
+  # TODO: There is currently no way to authenticate the call to the UAA to
+  #    support add user, etc. The auth_token only goes to the :target endpoint
+  #    and there is currently no support for a separate auth_token for the
+  #    authen_target endpoint.
+
+  def authen_target
+    @authen_target ||= ENV["VMC_AUTHEN_TARGET"] || info[:authorization_endpoint]
+  end
+
+  # get login info, including prompts for user credentials
+  def login_prompts
+    if !(@tmp_authn_target = authen_target)
+      prompts = { :username => ["text", "Email"], :password => ["password", "Password"] }
+    elsif !(prompts = json_get(path(VMC::LOGIN_INFO_PATH))[:prompts])
+      raise BadTarget, "no login prompts received from authentication target #{authen_target}"
+    end
+    prompts
+  end
+
+  # per-UAA login and return an auth_token
+  # Auth token can be retained and used in creating new clients, avoiding login.
+  def login_with_credentials(creds)
+
+    return login(creds[:username], creds[:password]) unless authen_target
+
+    @tmp_authn_target = authen_target
+
+    # we have tmp_authn_target, do the OAuth2 dance to the UAA
+    uri = "#{path(VMC::LOGIN_TOKEN_PATH)}?client_id=vmc&response_type=token&scope=read" +
+          "&redirect_uri=#{URI.encode('http://uaa.cloudfoundry.com/redirect/vmc')}"
+    body = "credentials=#{URI.encode(creds.to_json)}"
+    headers = {'Content-Type' => 'application/x-www-form-urlencoded',
+          'Accept' => 'application/json'}
+    status, body, headers = request(:post, uri, nil, body, headers)
+
+    unless status == 302
+      raise BadTarget, "received unexpected HTTP response from authentication target #{authen_target}: #{status}"
+    end
+
+    location = headers[:location].split('#')
+    unless location.length == 2 && location[0] == 'http://uaa.cloudfoundry.com/redirect/vmc'
+      raise BadTarget, "received invalid response from authentication target #{authen_target}"
+    end
+
+    values = {}
+    location[1].split('&').each do |kvp|
+      mtch = /(.+?)=(.+)/.match(kvp)
+      values[mtch[1].to_sym] = mtch[2]
+    end
+
+    unless values[:token_type] && values[:access_token]
+      raise BadTarget, "received insufficient token information in response from authentication target #{authen_target}"
+    end
+
+    # If the ENV["VMC_AUTHEN_TARGET"] is set, we expect the CC does not know
+    # about UAA-style tokens -- therefore this may be a legacy mode token and
+    # we leave off the token type.
+    @auth_token = ENV["VMC_AUTHEN_TARGET"] ? "" : URI.decode(values[:token_type]) + " "
+    @auth_token += "#{URI.decode(values[:access_token])}"
   end
 
   # sets the password for the current logged user
@@ -371,7 +449,7 @@ class VMC::Client
 
   def request(method, path, content_type = nil, payload = nil, headers = {})
     headers = headers.dup
-    headers['AUTHORIZATION'] = @auth_token if @auth_token
+    headers['AUTHORIZATION'] = @auth_token if @auth_token && !@tmp_authn_target
     headers['PROXY-USER'] = @proxy if @proxy
 
     if content_type
@@ -380,7 +458,8 @@ class VMC::Client
     end
 
     req = {
-      :method => method, :url => "#{@target}/#{path}",
+      :method => method,
+      :url => @tmp_authn_target ? "#{@tmp_authn_target}/#{path}" : "#{@target}/#{path}",
       :payload => payload, :headers => headers, :multipart => true
     }
     status, body, response_headers = perform_http_request(req)
@@ -394,6 +473,8 @@ class VMC::Client
     end
   rescue URI::Error, SocketError, Errno::ECONNREFUSED => e
     raise BadTarget, "Cannot access target (%s)" % [ e.message ]
+  ensure
+    @tmp_authn_target = nil
   end
 
   def request_failed?(status)
@@ -416,11 +497,15 @@ class VMC::Client
         puts '>>>'
         puts "PROXY: #{RestClient.proxy}" if RestClient.proxy
         puts "REQUEST: #{req[:method]} #{req[:url]}"
+        puts "REQUEST_HEADERS:"
+        req[:headers].each do |key, value|
+            puts "    #{key} : #{value}"
+        end
+        puts "REQUEST_BODY: #{req[:payload]}" if req[:payload]
         puts "RESPONSE_HEADERS:"
         response.headers.each do |key, value|
             puts "    #{key} : #{value}"
         end
-        puts "REQUEST_BODY: #{req[:payload]}" if req[:payload]
         puts "RESPONSE: [#{response.code}]"
         begin
             puts JSON.pretty_generate(JSON.parse(response.body))

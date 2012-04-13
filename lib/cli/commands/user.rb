@@ -10,19 +10,27 @@ module VMC::Cli::Command
     end
 
     def login(email=nil)
-      email    = @options[:email] unless email
-      password = @options[:password]
       tries ||= 0
+      creds ||= {}
 
-      unless no_prompt
-        display "Attempting login to [#{target_url}]" if target_url
-        email ||= ask("Email")
-        password ||= ask("Password", :echo => "*")
+      if no_prompt
+        err "Need a valid email" unless @options[:email]
+        creds[:username] = @options[:email]
+        err "Need a password" unless @options[:password]
+        creds[:password] = @options[:password]
+      else
+        client.login_prompts.each do |k, v|
+          if v[0] == "text"
+            creds[k] = (k == :username && @options[:email]) ? @options[:email] : ask(v[1], :default => creds[k])
+          elsif v[0] == "password"
+            creds[k] = (k == :password && @options[:password]) ? @options[:password]: ask(v[1], :echo => "*")
+          else
+            err "Unknown prompt type \"#{v[0]}\" received from #{client.authen_target}"
+          end
+        end
       end
 
-      err "Need a valid email" unless email
-      err "Need a password" unless password
-      login_and_save_token(email, password)
+      login_and_save_token(creds)
       say "Successfully logged into [#{target_url}]".green
     rescue VMC::Client::TargetError
       display "Problem with login, invalid account or password when attempting to login to '#{target_url}'".red
@@ -55,8 +63,13 @@ module VMC::Cli::Command
 
     private
 
-    def login_and_save_token(email, password)
-      token = client.login(email, password)
+    # NOTE: this is prototype code for adding support for a separate
+    # authentication endpoint. The goal here is to get support added
+    # with minimal changes to the overall VMC code.
+    # TODO: tokens should be stored in the token file as token
+    # per target_url/authn_target
+    def login_and_save_token(creds)
+      token = client.login_with_credentials(creds)
       VMC::Cli::Config.store_token(token, @options[:token_file])
     end
 
