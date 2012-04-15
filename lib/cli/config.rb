@@ -52,7 +52,7 @@ module VMC::Cli
 
       def all_tokens(token_file_path=nil)
         token_file = File.expand_path(token_file_path || TOKEN_FILE)
-        return nil unless File.exists? token_file
+        return [] unless File.exists? token_file
         contents = lock_and_read(token_file).strip
         JSON.parse(contents)
       end

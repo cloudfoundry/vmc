@@ -88,7 +88,7 @@ MIT license, please see the LICENSE file.  All rights reserved._
       aliases                                      List aliases
       alias <alias[=]command>                      Create an alias for a command
       unalias <alias>                              Remove an alias
-      targets                                      List known targets and associated authorization tokens
+      targets                                      List authorization tokens for each known targets
 
     Help
       help [command]                               Get general help or help on a specific command
