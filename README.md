@@ -31,6 +31,7 @@ MIT license, please see the LICENSE file.  All rights reserved._
       stop  <appname>                              Stop the application
       restart <appname>                            Restart the application
       delete <appname>                             Delete the application
+      open <appname>                               Open the application with your browser
 
     Application Updates
       update <appname> [--path]                    Update the application bits

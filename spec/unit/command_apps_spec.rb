@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'launchy'
 
 describe 'VMC::Cli::Command::Apps' do
 
@@ -17,6 +18,20 @@ describe 'VMC::Cli::Command::Apps' do
     RestClient.proxy = nil
     ENV['http_proxy'] = nil
     ENV['https_proxy'] = nil
+    ENV['LAUNCHY_DRY_RUN']  = 'true'
+
+    @old_stderr = $stderr
+    $stderr = StringIO.new
+
+    @old_stdout = $stdout
+    $stdout = StringIO.new
+    Launchy.reset_global_options
+  end
+
+  after(:each) do
+    Launchy.reset_global_options
+    $stderr = @old_stderr
+    $stdout = @old_stdout
   end
 
   it 'should not fail when there is an attempt to upload an app with links internal to the root' do
@@ -242,6 +257,48 @@ describe 'VMC::Cli::Command::Apps' do
     a_request(:post, app_upload_path).should have_been_made.once
     a_request(:put, app_path).should have_been_made.once
 
+  end
+
+  it 'should open the application with your browser when there is an attempt to open the application with specified appname' do
+    @client = VMC::Client.new(@local_target, @auth_token)
+
+    login_path = "#{@local_target}/users/#{@user}/tokens"
+    stub_request(:post, login_path).to_return(File.new(spec_asset('login_success.txt')))
+    info_path = "#{@local_target}/#{VMC::INFO_PATH}"
+    stub_request(:get, info_path).to_return(File.new(spec_asset('info_authenticated.txt')))
+
+    command = VMC::Cli::Command::Apps.new(options)
+    command.client(@client)
+
+    app_path = "#{@local_target}/#{VMC::APPS_PATH}/foo"
+    stub_request(:get, app_path).to_return(File.new(spec_asset('app_info.txt')))
+
+    command.open "foo"
+
+    $stdout.string.should =~ %r[http://foo.vcap.me]
+  end
+
+  it 'should open the application with your browser when there is an attempt to open the application that have multi uris' do
+    @client = VMC::Client.new(@local_target, @auth_token)
+
+    login_path = "#{@local_target}/users/#{@user}/tokens"
+    stub_request(:post, login_path).to_return(File.new(spec_asset('login_success.txt')))
+    info_path = "#{@local_target}/#{VMC::INFO_PATH}"
+    stub_request(:get, info_path).to_return(File.new(spec_asset('info_authenticated.txt')))
+
+    options = {
+      :noprompts => true
+    }
+
+    command = VMC::Cli::Command::Apps.new(options)
+    command.client(@client)
+
+    app_path = "#{@local_target}/#{VMC::APPS_PATH}/foo"
+    stub_request(:get, app_path).to_return(File.new(spec_asset('multi_uris_app_info.txt')))
+
+    command.open "foo"
+
+    $stdout.string.should =~ %r[http://f.vcap.me]
   end
 
 end

@@ -47,6 +47,7 @@ Currently available vmc commands are:
     stop  <appname>                              Stop the application
     restart <appname> [--debug [MODE]]           Restart the application
     delete <appname>                             Delete the application
+    open <appname>                               Open the application with your browser
 
   Application Updates
     update <appname> [--path,--debug [MODE]]     Update the application bits

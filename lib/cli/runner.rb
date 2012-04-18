@@ -413,6 +413,10 @@ class VMC::Cli::Runner
       usage('vmc extend-manifest')
       set_cmd(:manifest, :extend, 1)
 
+    when 'open'
+      usage('vmc open <appname>')
+      set_cmd(:apps, :open, @args.size == 1 ? 1 : 0)
+
     else
       if verb
         display "vmc: Unknown command [#{verb}]"
