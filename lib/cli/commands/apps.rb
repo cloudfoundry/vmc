@@ -6,6 +6,7 @@ require 'tmpdir'
 require 'set'
 require "uuidtools"
 require 'socket'
+require 'launchy'
 
 module VMC::Cli::Command
 
@@ -358,6 +359,43 @@ module VMC::Cli::Command
       else
         display 'OK'.green
       end
+    end
+
+    def open(appname=nil)
+
+      unless appname
+        unless no_prompt || @options[:path]
+          proceed = ask(
+            'Would you like to open from the current directory?',
+            :default => true
+          )
+
+          unless proceed
+            @path = ask('Open path')
+          end
+        end
+
+        appnames = []
+        each_app(false) do |name|
+          appnames << name
+        end
+
+        return display "No Applications".red if appnames.empty?
+
+        default_app = appnames.first
+
+        need_choice_app = !no_prompt && appnames.size > 1
+
+        appname = need_choice_app ? ask(
+          "Select Application",
+          :indexed => true,
+          :default => default_app,
+          :choices => appnames
+        ) : default_app
+      end
+
+      do_open(appname)
+
     end
 
     private
@@ -1089,6 +1127,32 @@ module VMC::Cli::Command
         rescue VMC::Client::NotFound, VMC::Client::TargetError
         end
       end
+    end
+
+    def do_open(appname)
+      app = client.app_info(appname)
+
+      return display "Application '#{appname}' could not be found".red if app.nil?
+      return display "Application '#{appname}' is not started".red if app[:state] != 'STARTED'
+
+      uris = app[:uris]
+
+      return display "Application '#{appname}' is not mapped url".red if uris.empty?
+
+      default_url = uris.first
+
+      need_choice_uri = !no_prompt && uris.size > 1
+
+      open_uri = need_choice_uri ? ask(
+        "Select open url",
+        :indexed => true,
+        :default => default_url,
+        :choices => uris
+      ) : default_url
+
+      display "Openning application '#{appname}'..."
+
+      Launchy.open "http://#{open_uri}"
     end
   end
 
