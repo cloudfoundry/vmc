@@ -85,7 +85,7 @@ describe 'VMC::Cli::Command::Apps' do
     app_path = "#{@local_target}/#{VMC::APPS_PATH}/foo"
     stub_request(:get, app_path).to_return(File.new(spec_asset('app_info.txt')))
 
-    expect { command.update('foo')}.to raise_error(/Can't deploy application containing links/)
+    expect { command.update('foo') }.to raise_error(/Can't deploy application containing links/)
   end
 
   it 'should not fail when there is an attempt to update an app using a single file' do

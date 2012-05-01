@@ -11,17 +11,17 @@ module VMC::Cli::ManifestHelper
 
   MANIFEST = "manifest.yml"
 
-  YES_SET = Set.new(["y", "Y", "yes", "YES"])
+  YES_SET = Set.new ["y", "Y", "yes", "YES"]
 
   # take a block and call it once for each app to push/update.
   # with @application and @app_info set appropriately
-  def each_app(panic=true)
+  def each_app(panic = true)
     if @manifest and all_apps = @manifest["applications"]
-      where = File.expand_path(@path)
+      where = File.expand_path @path
       single = false
 
       all_apps.each do |path, info|
-        app = File.expand_path("../" + path, manifest_file)
+        app = File.expand_path "../" + path, manifest_file
         if where.start_with?(app)
           @application = app
           @app_info = info
@@ -34,7 +34,7 @@ module VMC::Cli::ManifestHelper
       unless single
         if where == File.expand_path("../", manifest_file)
           ordered_by_deps(all_apps).each do |path, info|
-            app = File.expand_path("../" + path, manifest_file)
+            app = File.expand_path "../" + path, manifest_file
             @application = app
             @app_info = info
             yield info["name"]
@@ -59,9 +59,9 @@ module VMC::Cli::ManifestHelper
     @app_info = nil
   end
 
-  def interact(many=false)
+  def interact(many = false)
     @manifest ||= {}
-    configure_app(many)
+    configure_app many
   end
 
   def target_manifest
@@ -71,32 +71,28 @@ module VMC::Cli::ManifestHelper
   def save_manifest(save_to = nil)
     save_to ||= target_manifest
 
-    File.open(save_to, "w") do |f|
+    File.open save_to, "w" do |f|
       f.write @manifest.to_yaml
     end
 
     say "Manifest written to #{save_to}."
   end
 
-  def configure_app(many=false)
+  def configure_app(many = false)
     name = manifest("name") ||
       set(ask("Application Name", :default => manifest("name")), "name")
-
-
 
     if manifest "framework"
       framework = VMC::Cli::Framework.lookup_by_framework manifest("framework","name")
     else
       framework = detect_framework
       set framework.name, "framework", "name"
-      set(
-        { "mem" => framework.mem,
-          "description" => framework.description,
-          "exec" => framework.exec
-        },
-        "framework",
-        "info"
-      )
+      set({ "mem"         => framework.mem,
+            "description" => framework.description,
+            "exec"        => framework.exec
+          },
+          "framework",
+          "info")
     end
 
     default_runtime = manifest "runtime"
@@ -125,14 +121,12 @@ module VMC::Cli::ManifestHelper
     # case this common error
     url = url_resolved if YES_SET.member? url
 
-    if(url == "None")
-      url = nil
-    end
+    url = nil if url == "None"
 
     set url, "url"
 
-    default_mem = manifest("mem")
-    default_mem = framework.memory(manifest("runtime")) if not default_mem
+    default_mem = manifest "mem"
+    default_mem = framework.memory(manifest("runtime")) unless default_mem
     set ask(
       "Memory reservation",
       :default =>
@@ -148,11 +142,11 @@ module VMC::Cli::ManifestHelper
 
     unless manifest "services"
       user_services = client.services
-      user_services.sort! {|a, b| a[:name] <=> b[:name] }
+      user_services.sort! { |a, b| a[:name] <=> b[:name] }
 
       unless user_services.empty?
         if ask "Bind existing services to '#{name}'?", :default => false
-          bind_services(user_services)
+          bind_services user_services
         end
       end
 
@@ -187,11 +181,11 @@ module VMC::Cli::ManifestHelper
 
   # Detect the appropriate framework.
   def detect_framework(prompt_ok = true)
-    framework = VMC::Cli::Framework.detect(@application, frameworks_info)
-    framework_correct = ask("Detected a #{framework}, is this correct?", :default => true) if prompt_ok && framework
+    framework = VMC::Cli::Framework.detect @application, frameworks_info
+    framework_correct = ask "Detected a #{framework}, is this correct?", :default => true if prompt_ok && framework
     if prompt_ok && (framework.nil? || !framework_correct)
       display "#{"[WARNING]".yellow} Can't determine the Application Type." unless framework
-      framework = nil if !framework_correct
+      framework = nil unless framework_correct
       framework = VMC::Cli::Framework.lookup(
         ask(
           "Select Application Type",
@@ -225,38 +219,32 @@ module VMC::Cli::ManifestHelper
   end
 
   def bind_services(user_services, chosen = 0)
-    svcname = ask(
-      "Which one?",
+    svcname = ask "Which one?",
       :indexed => true,
-      :choices => user_services.collect { |p| p[:name] })
+      :choices => user_services.collect { |p| p[:name] }
 
     svc = user_services.find { |p| p[:name] == svcname }
 
     set svc[:vendor], "services", svcname, "type"
 
     if chosen + 1 < user_services.size && ask("Bind another?", :default => false)
-      bind_services(user_services, chosen + 1)
+      bind_services user_services, chosen + 1
     end
   end
 
   def create_services(services)
     svcs = services.collect(&:to_s).sort!
 
-    configure_service(
-      ask(
-        "What kind of service?",
-        :indexed => true,
-        :choices => svcs
+    configure_service ask("What kind of service?",
+      :indexed => true,
+      :choices => svcs
       )
-    )
 
-    if ask "Create another?", :default => false
-      create_services(services)
-    end
+    create_services services if ask "Create another?", :default => false
   end
 
   def configure_service(vendor)
-    default_name = random_service_name(vendor)
+    default_name = random_service_name vendor
     name = ask "Specify the name of the service", :default => default_name
 
     set vendor, "services", name, "type"
@@ -267,32 +255,32 @@ module VMC::Cli::ManifestHelper
       unless abspaths
         abspaths = {}
         apps.each do |p, i|
-          ep = File.expand_path("../" + p, manifest_file)
+          ep = File.expand_path "../" + p, manifest_file
           abspaths[ep] = i
         end
       end
 
       ordered = []
       apps.each do |path, info|
-        epath = File.expand_path("../" + path, manifest_file)
+        epath = File.expand_path "../" + path, manifest_file
 
         if deps = info["depends-on"]
           dep_apps = {}
           deps.each do |dep|
-            edep = File.expand_path("../" + dep, manifest_file)
+            edep = File.expand_path "../" + dep, manifest_file
 
             err "Circular dependency detected." if processed.include? edep
 
             dep_apps[dep] = abspaths[edep]
           end
 
-          processed.add(epath)
+          processed.add epath
 
           ordered += ordered_by_deps(dep_apps, abspaths, processed)
           ordered << [path, info]
         elsif not processed.include? epath
           ordered << [path, info]
-          processed.add(epath)
+          processed.add epath
         end
       end
 

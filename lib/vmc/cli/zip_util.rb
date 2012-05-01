@@ -1,4 +1,3 @@
-
 require 'zip/zipfilesystem'
 
 module VMC::Cli
@@ -10,11 +9,7 @@ module VMC::Cli
     class << self
 
       def to_dev_null
-        if !!RUBY_PLATFORM['mingw'] || !!RUBY_PLATFORM['mswin32'] || !!RUBY_PLATFORM['cygwin']
-          'nul'
-        else
-          '/dev/null'
-        end
+        VMC.windows? ? 'nul' : '/dev/null'
       end
 
       def entry_lines(file)
@@ -27,23 +22,23 @@ module VMC::Cli
         unless contents
           entries = []
           Zip::ZipFile.foreach(file) { |zentry| entries << zentry }
-          contents = entries.join("\n")
+          contents = entries.join "\n"
         end
         contents
       end
 
       def unpack(file, dest)
         unless VMC::Cli::Config.nozip
-          FileUtils.mkdir(dest)
+          FileUtils.mkdir dest
           `unzip -q #{file} -d #{dest} 2> #{to_dev_null}`
-          return unless $? != 0
+          return if $? == 0
         end
         # Do Ruby version if told to or native version failed
-        Zip::ZipFile.foreach(file) do |zentry|
+        Zip::ZipFile.foreach file do |zentry|
           epath = "#{dest}/#{zentry}"
-          dirname = File.dirname(epath)
-          FileUtils.mkdir_p(dirname) unless File.exists?(dirname)
-          zentry.extract(epath) unless File.exists?(epath)
+          dirname = File.dirname epath
+          FileUtils.mkdir_p dirname unless File.exists?(dirname)
+          zentry.extract epath unless File.exists?(epath)
         end
       end
 
@@ -65,9 +60,9 @@ module VMC::Cli
           end
         end
         # Do Ruby version if told to or native version failed
-        Zip::ZipFile::open(zipfile, true) do |zf|
+        Zip::ZipFile.open zipfile, true do |zf|
           get_files_to_pack(dir).each do |f|
-            zf.add(f.sub("#{dir}/",''), f)
+            zf.add f.sub("#{dir}/",''), f
           end
         end
       end
