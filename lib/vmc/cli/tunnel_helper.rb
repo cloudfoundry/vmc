@@ -18,7 +18,7 @@ module VMC::Cli
     HELPER_VERSION = '0.0.4'
 
     def tunnel_uniquename
-      random_service_name(tunnel_appname)
+      random_service_name tunnel_appname
     end
 
     def tunnel_appname
@@ -26,12 +26,7 @@ module VMC::Cli
     end
 
     def tunnel_app_info
-      return @tun_app_info if @tunnel_app_info
-      begin
-        @tun_app_info = client.app_info(tunnel_appname)
-      rescue => e
-        @tun_app_info = nil
-      end
+      @tun_app_info ||= client.app_info(tunnel_appname) rescue nil
     end
 
     def tunnel_auth
@@ -50,7 +45,7 @@ module VMC::Cli
       ["https", "http"].each do |scheme|
         url = "#{scheme}://#{tun_url}"
         begin
-          RestClient.get(url)
+          RestClient.get url
 
         # https failed
         rescue Errno::ECONNREFUSED
@@ -77,12 +72,9 @@ module VMC::Cli
       return false unless tunnel_app_info[:state] == 'STARTED'
 
       begin
-        response = RestClient.get(
-          "#{tunnel_url}/info",
-          "Auth-Token" => token
-        )
+        response = RestClient.get "#{tunnel_url}/info", "Auth-Token" => token
 
-        info = JSON.parse(response)
+        info = JSON.parse response
         if info["version"] == HELPER_VERSION
           true
         else
@@ -96,7 +88,7 @@ module VMC::Cli
     end
 
     def tunnel_bound?(service)
-      tunnel_app_info[:services].include?(service)
+      tunnel_app_info[:services].include? service
     end
 
     def tunnel_connection_info(type, service, token)
@@ -104,7 +96,7 @@ module VMC::Cli
       response = nil
       10.times do
         begin
-          response = RestClient.get(tunnel_url + "/" + VMC::Client.path("services", service), "Auth-Token" => token)
+          response = RestClient.get [tunnel_url, VMC::Client.path("services", service)].join("/"), "Auth-Token" => token
           break
         rescue RestClient::Exception
           sleep 1
@@ -113,21 +105,19 @@ module VMC::Cli
         display ".", false
       end
 
-      unless response
-        err "Expected remote tunnel to know about #{service}, but it doesn't"
-      end
+      err "Expected remote tunnel to know about #{service}, but it doesn't" unless response
 
       display "OK".green
 
-      info = JSON.parse(response)
+      info = JSON.parse response
       case type
       when "rabbitmq"
         uri = Addressable::URI.parse info["url"]
-        info["hostname"] = uri.host
-        info["port"] = uri.port
-        info["vhost"] = uri.path[1..-1]
-        info["user"] = uri.user
-        info["password"] = uri.password
+        info["hostname"]  = uri.host
+        info["port"]      = uri.port
+        info["vhost"]     = uri.path[1..-1]
+        info["user"]      = uri.user
+        info["password"]  = uri.password
         info.delete "url"
 
       # we use "db" as the "name" for mongo
@@ -141,7 +131,7 @@ module VMC::Cli
         info.delete "name"
       end
 
-      ['hostname', 'port', 'password'].each do |k|
+      %w{hostname port password}.each do |k|
         err "Could not determine #{k} for #{service}" if info[k].nil?
       end
 
@@ -185,29 +175,25 @@ module VMC::Cli
 
     def start_tunnel(local_port, conn_info, auth)
       @local_tunnel_thread = Thread.new do
-        Caldecott::Client.start({
-          :local_port => local_port,
-          :tun_url => tunnel_url,
-          :dst_host => conn_info['hostname'],
-          :dst_port => conn_info['port'],
-          :log_file => STDOUT,
-          :log_level => ENV["VMC_TUNNEL_DEBUG"] || "ERROR",
+        Caldecott::Client.start :local_port => local_port,
+          :tun_url    => tunnel_url,
+          :dst_host   => conn_info['hostname'],
+          :dst_port   => conn_info['port'],
+          :log_file   => STDOUT,
+          :log_level  => ENV["VMC_TUNNEL_DEBUG"] || "ERROR",
           :auth_token => auth,
-          :quiet => true
-        })
+          :quiet      => true
       end
 
       at_exit { @local_tunnel_thread.kill }
     end
-
-
 
     def pick_tunnel_port(port)
       original = port
 
       PORT_RANGE.times do |n|
         begin
-          TCPSocket.open('localhost', port)
+          TCPSocket.open 'localhost', port
           port += 1
         rescue
           return port
@@ -218,22 +204,22 @@ module VMC::Cli
     end
 
     def grab_ephemeral_port
-      socket = TCPServer.new('0.0.0.0', 0)
-      socket.setsockopt(Socket::SOL_SOCKET, Socket::SO_REUSEADDR, true)
+      socket = TCPServer.new '0.0.0.0', 0
+      socket.setsockopt Socket::SOL_SOCKET, Socket::SO_REUSEADDR, true
       Socket.do_not_reverse_lookup = true
       port = socket.addr[1]
       socket.close
-      return port
+      port
     end
 
     def wait_for_tunnel_start(port)
       10.times do |n|
         begin
-          client = TCPSocket.open('localhost', port)
+          client = TCPSocket.open 'localhost', port
           display '' if n > 0
           client.close
           return true
-        rescue => e
+        rescue
           display "Waiting for local tunnel to become available", false if n == 0
           display '.', false
           sleep 1
@@ -250,7 +236,7 @@ module VMC::Cli
     end
 
     def resolve_symbols(str, info, local_port)
-      str.gsub(/\$\{\s*([^\}]+)\s*\}/) do
+      str.gsub /\$\{\s*([^\}]+)\s*\}/ do
         case $1
         when "host"
           # TODO: determine proper host
@@ -275,7 +261,7 @@ module VMC::Cli
         cmdline << resolve_symbols(client["command"], info, port)
         client["environment"].each do |e|
           if e =~ /([^=]+)=(["']?)([^"']*)\2/
-            ENV[$1] = resolve_symbols($3, info, port)
+            ENV[$1] = resolve_symbols $3, info, port
           else
             err "Invalid environment variable: #{e}"
           end
@@ -289,34 +275,31 @@ module VMC::Cli
       display "Launching '#{cmdline}'"
       display ''
 
-      system(cmdline)
+      system cmdline
     end
 
     def push_caldecott(token)
-      client.create_app(
-        tunnel_appname,
-        { :name => tunnel_appname,
-          :staging => {:framework => "sinatra"},
-          :uris => ["#{tunnel_uniquename}.#{target_base}"],
-          :instances => 1,
-          :resources => {:memory => 64},
-          :env => ["CALDECOTT_AUTH=#{token}"]
-        }
-      )
+      client.create_app tunnel_appname,
+        :name       => tunnel_appname,
+        :staging    => {:framework => "sinatra"},
+        :uris       => ["#{tunnel_uniquename}.#{target_base}"],
+        :instances  => 1,
+        :resources  => {:memory => 64},
+        :env        => ["CALDECOTT_AUTH=#{token}"]
 
-      apps_cmd.send(:upload_app_bits, tunnel_appname, HELPER_APP)
+      apps_cmd.send :upload_app_bits, tunnel_appname, HELPER_APP
 
       invalidate_tunnel_app_info
     end
 
     def stop_caldecott
-      apps_cmd.stop(tunnel_appname)
+      apps_cmd.stop tunnel_appname
 
       invalidate_tunnel_app_info
     end
 
     def start_caldecott
-      apps_cmd.start(tunnel_appname)
+      apps_cmd.start tunnel_appname
 
       invalidate_tunnel_app_info
     end
@@ -324,9 +307,7 @@ module VMC::Cli
     private
 
     def apps_cmd
-      a = Command::Apps.new(@options)
-      a.client client
-      a
+      Command::Apps.new(@options).tap { |a| a.client client }
     end
   end
 end

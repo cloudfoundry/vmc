@@ -17,7 +17,7 @@ module VMC::Cli::Command
 
     def list
       apps = client.apps
-      apps.sort! {|a, b| a[:name] <=> b[:name] }
+      apps.sort! { |a, b| a[:name] <=> b[:name] }
       return display JSON.pretty_generate(apps || []) if @options[:json]
 
       display "\n"
@@ -87,13 +87,13 @@ module VMC::Cli::Command
         start_caldecott
       end
 
-      start_tunnel(port, conn_info, auth)
-      wait_for_tunnel_start(port)
+      start_tunnel port, conn_info, auth
+      wait_for_tunnel_start port
       start_local_console(port, appname) if interactive
       port
     end
 
-    def start(appname=nil, push=false)
+    def start(appname = nil, push = false)
       if appname
         do_start(appname, push)
       else
@@ -103,7 +103,7 @@ module VMC::Cli::Command
       end
     end
 
-    def stop(appname=nil)
+    def stop(appname = nil)
       if appname
         do_stop(appname)
       else
@@ -118,12 +118,12 @@ module VMC::Cli::Command
       end
     end
 
-    def restart(appname=nil)
+    def restart(appname = nil)
       stop(appname)
       start(appname)
     end
 
-    def mem(appname, memsize=nil)
+    def mem(appname, memsize = nil)
       app = client.app_info(appname)
       mem = current_mem = mem_quota_to_choice(app[:resources][:memory])
       memsize = normalize_mem(memsize) if memsize
@@ -134,9 +134,9 @@ module VMC::Cli::Command
         :choices => mem_choices
       )
 
-      mem         = mem_choice_to_quota(mem)
-      memsize     = mem_choice_to_quota(memsize)
-      current_mem = mem_choice_to_quota(current_mem)
+      mem         = mem_choice_to_quota mem
+      memsize     = mem_choice_to_quota memsize
+      current_mem = mem_choice_to_quota current_mem
 
       display "Updating Memory Reservation to #{mem_quota_to_choice(memsize)}: ", false
 
@@ -175,7 +175,7 @@ module VMC::Cli::Command
       display "Successfully unmapped url".green
     end
 
-    def delete(appname=nil)
+    def delete(appname = nil)
       force = @options[:force]
       if @options[:all]
         if no_prompt || force || ask("Delete ALL applications?", :default => false)
@@ -188,7 +188,7 @@ module VMC::Cli::Command
       end
     end
 
-    def files(appname, path='/')
+    def files(appname, path = '/')
       return all_files(appname, path) if @options[:all] && !@options[:instance]
       instance = @options[:instance] || '0'
       content = client.app_files(appname, path, instance)
@@ -210,9 +210,6 @@ module VMC::Cli::Command
       crashed.delete_if { |c| c[:since] < since }
       instance_map = {}
 
-#      return display JSON.pretty_generate(apps) if @options[:json]
-
-
       counter = 0
       crashed = crashed.to_a.sort { |a,b| a[:since] - b[:since] }
       crashed_table = table do |t|
@@ -224,7 +221,7 @@ module VMC::Cli::Command
         end
       end
 
-      VMC::Cli::Config.store_instances(instance_map)
+      VMC::Cli::Config.store_instances instance_map
 
       if @options[:json]
         return display JSON.pretty_generate(crashed)
@@ -245,7 +242,7 @@ module VMC::Cli::Command
       grab_crash_logs(appname, instance)
     end
 
-    def instances(appname, num=nil)
+    def instances(appname, num = nil)
       if num
         change_instances(appname, num)
       else
@@ -253,7 +250,7 @@ module VMC::Cli::Command
       end
     end
 
-    def stats(appname=nil)
+    def stats(appname = nil)
       if appname
         display "\n", false
         do_stats(appname)
@@ -265,7 +262,7 @@ module VMC::Cli::Command
       end
     end
 
-    def update(appname=nil)
+    def update(appname = nil)
       if appname
         app = client.app_info(appname)
         if @options[:canary]
@@ -284,7 +281,7 @@ module VMC::Cli::Command
       end
     end
 
-    def push(appname=nil)
+    def push(appname = nil)
       unless no_prompt || @options[:path]
         proceed = ask(
           'Would you like to deploy from the current directory?',
@@ -297,20 +294,20 @@ module VMC::Cli::Command
       end
 
       pushed = false
-      each_app(false) do |name|
+      each_app false do |name|
         display "Pushing application '#{name}'..." if name
-        do_push(name)
+        do_push name
         pushed = true
       end
 
       unless pushed
         @application = @path
-        do_push(appname)
+        do_push appname
       end
     end
 
     def environment(appname)
-      app = client.app_info(appname)
+      app = client.app_info appname
       env = app[:env] || []
       return display JSON.pretty_generate(env) if @options[:json]
       return display "No Environment Variables" if env.empty?
@@ -325,8 +322,8 @@ module VMC::Cli::Command
       display etable
     end
 
-    def environment_add(appname, k, v=nil)
-      app = client.app_info(appname)
+    def environment_add(appname, k, v = nil)
+      app = client.app_info appname
       env = app[:env] || []
       k,v = k.split('=', 2) unless v
       env << "#{k}=#{v}"
@@ -342,17 +339,17 @@ module VMC::Cli::Command
       env = app[:env] || []
       deleted_env = nil
       env.each do |e|
-        k,v = e.split('=')
-        if (k == variable)
+        k, v = e.split '='
+        if k == variable
           deleted_env = e
-          break;
+          break
         end
       end
       display "Deleting Environment Variable [#{variable}]: ", false
       if deleted_env
-        env.delete(deleted_env)
+        env.delete deleted_env
         app[:env] = env
-        client.update_app(appname, app)
+        client.update_app appname, app
         display 'OK'.green
         restart appname if app[:state] == 'STARTED'
       else
@@ -371,12 +368,12 @@ module VMC::Cli::Command
 
     def check_deploy_directory(path)
       err 'Deployment path does not exist' unless File.exists? path
-      return if File.expand_path(Dir.tmpdir) != File.expand_path(path)
+      return unless File.expand_path(Dir.tmpdir) == File.expand_path(path)
       err "Can't deploy applications from staging directory: [#{Dir.tmpdir}]"
     end
 
     def check_unreachable_links(path)
-      files = Dir.glob("#{path}/**/*", File::FNM_DOTMATCH)
+      files = Dir.glob "#{path}/**/*", File::FNM_DOTMATCH
 
       pwd = Pathname.pwd
 

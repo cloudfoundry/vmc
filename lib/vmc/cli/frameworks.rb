@@ -33,7 +33,7 @@ module VMC::Cli
       end
 
       def lookup(name)
-        return create(*FRAMEWORKS[name])
+        create(*FRAMEWORKS[name])
       end
 
       def lookup_by_framework(name)
@@ -44,14 +44,14 @@ module VMC::Cli
 
       def create(name,opts)
         if name == "standalone"
-          return StandaloneFramework.new(name, opts)
+          StandaloneFramework.new name, opts
         else
-          return Framework.new(name,opts)
+          Framework.new name,opts
         end
       end
 
       def detect(path, available_frameworks)
-        if !File.directory? path
+        unless File.directory? path
           if path.end_with?('.war')
             return detect_framework_from_war path
           elsif available_frameworks.include?(["standalone"])
@@ -60,7 +60,7 @@ module VMC::Cli
             return nil
           end
         end
-        Dir.chdir(path) do
+        Dir.chdir path do
           # Rails
           if File.exist?('config/environment.rb')
             return Framework.lookup('Rails')
@@ -81,11 +81,12 @@ module VMC::Cli
             matched_file = nil
             Dir.glob('*.rb').each do |fname|
               next if matched_file
-              File.open(fname, 'r') do |f|
+              File.open fname, 'r' do |f|
                 str = f.read # This might want to be limited
-                matched_file = fname if (str && str.match(/^\s*require[\s\(]*['"]sinatra['"]/))
+                matched_file = fname if str && str.match(/^\s*require[\s\(]*['"]sinatra['"]/)
               end
             end
+
             if matched_file
               # Sinatra apps
               f = Framework.lookup('Sinatra')
@@ -154,7 +155,7 @@ module VMC::Cli
     attr_reader   :name, :description, :console
     attr_accessor :exec
 
-    def initialize(framework=nil, opts={})
+    def initialize(framework = nil, opts = {})
       @name = framework || DEFAULT_FRAMEWORK
       @memory = opts[:mem] || DEFAULT_MEM
       @description = opts[:description] || 'Unknown Application Type'
@@ -182,7 +183,7 @@ module VMC::Cli
       nil
     end
 
-    def memory(runtime=nil)
+    def memory(runtime = nil)
       @memory
     end
 
@@ -222,10 +223,10 @@ module VMC::Cli
           end
         end
       end
-      return nil
+      nil
     end
 
-    def memory(runtime=nil)
+    def memory(runtime = nil)
       default_mem = @memory
       default_mem = '128M' if runtime =~ /\Aruby/ || runtime == "php"
       default_mem = '512M' if runtime == "java"
@@ -233,6 +234,7 @@ module VMC::Cli
     end
 
     private
+
     def detect_runtime_from_zip(zip_file)
       contents = ZipUtil.entry_lines(zip_file)
       if contents =~ /\.(jar)$/
