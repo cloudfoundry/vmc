@@ -1,7 +1,6 @@
-module VMC
-  autoload :Client,           "vmc/client"
-  autoload :Micro,            "vmc/micro"
+require 'vmc'
 
+module VMC
   module Micro
     module Switcher
       autoload :Base,         "vmc/micro/switcher/base"

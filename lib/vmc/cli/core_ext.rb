@@ -1,7 +1,7 @@
 module VMCExtensions
 
   def say(message)
-    VMC::Cli::Config.output.puts(message) if VMC::Cli::Config.output
+    VMC::Cli::Config.output.puts message if VMC::Cli::Config.output
   end
 
   def header(message, filler = '-')
@@ -15,26 +15,24 @@ module VMCExtensions
     say message
   end
 
-  def display(message, nl=true)
+  def display(message, nl = true)
     if nl
       say message
-    else
-      if VMC::Cli::Config.output
-        VMC::Cli::Config.output.print(message)
-        VMC::Cli::Config.output.flush
-      end
+    elsif VMC::Cli::Config.output
+      VMC::Cli::Config.output.print message
+      VMC::Cli::Config.output.flush
     end
   end
 
-  def clear(size=80)
+  def clear(size = 80)
     return unless VMC::Cli::Config.output
-    VMC::Cli::Config.output.print("\r")
-    VMC::Cli::Config.output.print(" " * size)
-    VMC::Cli::Config.output.print("\r")
+    VMC::Cli::Config.output.print "\r"
+    VMC::Cli::Config.output.print " " * size
+    VMC::Cli::Config.output.print "\r"
     #VMC::Cli::Config.output.flush
   end
 
-  def err(message, prefix='Error: ')
+  def err(message, prefix = 'Error: ')
     raise VMC::Cli::CliExit, "#{prefix}#{message}"
   end
 
@@ -52,16 +50,16 @@ module VMCExtensions
 
   def uptime_string(delta)
     num_seconds = delta.to_i
-    days = num_seconds / (60 * 60 * 24);
-    num_seconds -= days * (60 * 60 * 24);
-    hours = num_seconds / (60 * 60);
-    num_seconds -= hours * (60 * 60);
-    minutes = num_seconds / 60;
-    num_seconds -= minutes * 60;
+    days = num_seconds / (60 * 60 * 24)
+    num_seconds -= days * (60 * 60 * 24)
+    hours = num_seconds / (60 * 60)
+    num_seconds -= hours * (60 * 60)
+    minutes = num_seconds / 60
+    num_seconds -= minutes * 60
     "#{days}d:#{hours}h:#{minutes}m:#{num_seconds}s"
   end
 
-  def pretty_size(size, prec=1)
+  def pretty_size(size, prec = 1)
     return 'NA' unless size
     return "#{size}B" if size < 1024
     return sprintf("%.#{prec}fK", size/1024.0) if size < (1024*1024)
@@ -73,19 +71,19 @@ end
 module VMCStringExtensions
 
   def red
-    colorize("\e[0m\e[31m")
+    colorize "\e[0m\e[31m"
   end
 
   def green
-    colorize("\e[0m\e[32m")
+    colorize "\e[0m\e[32m"
   end
 
   def yellow
-    colorize("\e[0m\e[33m")
+    colorize "\e[0m\e[33m"
   end
 
   def bold
-    colorize("\e[0m\e[1m")
+    colorize "\e[0m\e[1m"
   end
 
   def colorize(color_code)

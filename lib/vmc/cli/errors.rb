@@ -6,14 +6,14 @@ module VMC::Cli
     end
   end
 
-  class UnknownCommand       < CliError; error_code(100); end
-  class TargetMissing        < CliError; error_code(102); end
-  class TargetInaccessible   < CliError; error_code(103); end
+  UnknownCommand      = Class.new(CliError) { error_code 100 }
+  TargetMissing       = Class.new(CliError) { error_code 102 }
+  TargetInaccessible  = Class.new(CliError) { error_code 103 }
 
-  class TargetError          < CliError; error_code(201); end
-  class AuthError            < TargetError; error_code(202); end
+  TargetError         = Class.new(CliError) { error_code 201 }
+  AuthError           = Class.new(TargetError) { error_code 202 }
 
-  class CliExit              < CliError; error_code(400); end
-  class GracefulExit         < CliExit;  error_code(401); end
+  CliExit             = Class.new(CliError) { error_code 400 }
+  GracefulExit        = Class.new(CliExit) { error_code 401 }
 
 end

@@ -3,9 +3,7 @@ require 'interact'
 require 'terminal-table/import'
 
 module VMC::Cli
-
   module Command
-
     class Base
       include Interactive
 
@@ -13,10 +11,10 @@ module VMC::Cli
 
       MANIFEST = "manifest.yml"
 
-      def initialize(options={})
-        @options = options.dup
-        @no_prompt = @options[:noprompts]
-        @prompt_ok = !no_prompt
+      def initialize(options = {})
+        @options    = options.dup
+        @no_prompt  = @options[:noprompts]
+        @prompt_ok  = !no_prompt
 
         # Suppress colorize on Windows systems for now.
         VMC::Cli::Config.colorize = false if VMC.windows?
@@ -120,13 +118,10 @@ module VMC::Cli
         case sym
         when "target-base"
           target_base(ctx)
-
         when "target-url"
           target_url(ctx)
-
         when "random-word"
           "%04x" % [rand(0x0100000)]
-
         else
           found = find_symbol(sym, ctx)
 
@@ -180,7 +175,7 @@ module VMC::Cli
       end
 
       # Inject a client to help in testing.
-      def client(cli=nil)
+      def client(cli = nil)
         @client ||= cli
         return @client if @client
         @client = VMC::Client.new(target_url, auth_token)
@@ -222,4 +217,3 @@ module VMC::Cli
     end
   end
 end
-

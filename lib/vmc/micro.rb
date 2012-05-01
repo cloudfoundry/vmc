@@ -6,16 +6,10 @@ module VMC::Micro
   end
 
   def escape_path(path)
-    path = File.expand_path(path)
-    if RUBY_PLATFORM =~ /mingw|mswin32|cygwin/
-      if path.include?(' ')
-        return '"' + path + '"'
-      else
-        return path
-      end
-    else
-      return path.gsub(' ', '\ ')
-    end
+    path = File.expand_path path
+    return path.gsub(' ', '\ ') unless VMC.windows?
+
+    path.include?(' ') ? "\#{path}\"" : path
   end
 
   def locate_file(file, directory, search_paths)
@@ -34,17 +28,13 @@ module VMC::Micro
     false
   end
 
-  def run_command(command, args=nil)
+  def run_command(command, args = nil)
     # TODO switch to using posix-spawn instead
     result = %x{#{command} #{args} 2>&1}
-    unless $?.exitstatus == 0
-      if block_given?
-        yield
-      else
-        raise "failed to execute #{command} #{args}:\n#{result}"
-      end
-    else
+    if $?.exitstatus == 0
       result.split(/\n/)
+    else
+      raise "failed to execute #{command} #{args}:\n#{result}" unless block_given?
     end
   end
 
