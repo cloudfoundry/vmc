@@ -1,7 +1,5 @@
-
 require 'optparse'
-
-require File.dirname(__FILE__) + '/usage'
+require 'vmc/cli/usage'
 
 class VMC::Cli::Runner
 
@@ -14,7 +12,7 @@ class VMC::Cli::Runner
     new(args).run
   end
 
-  def initialize(args=[])
+  def initialize(args = [])
     @args = args
     @options = { :colorize => true }
     @exit_status = true
@@ -102,7 +100,7 @@ class VMC::Cli::Runner
       opts.on_tail('--options')    {          puts "#{opts}\n"; exit }
     end
     instances_delta_arg = check_instances_delta!
-    @args = opts_parser.parse!(@args)
+    @args = opts_parser.parse! @args
     @args.concat instances_delta_arg
     convert_options!
     self
@@ -137,9 +135,9 @@ class VMC::Cli::Runner
     else
       @exit_status = false
       if @args.size > args_range.last
-        usage_error("Too many arguments for [#{action}]: %s" % [ @args[args_range.last..-1].map{|a| "'#{a}'"}.join(', ') ])
+        usage_error "Too many arguments for [#{action}]: %s" % [ @args[args_range.last..-1].map { |a| "'#{a}'" }.join(', ') ]
       else
-        usage_error("Not enough arguments for [#{action}]")
+        usage_error "Not enough arguments for [#{action}]"
       end
     end
   end
@@ -152,243 +150,247 @@ class VMC::Cli::Runner
     case verb
 
     when 'version'
-      usage('vmc version')
-      set_cmd(:misc, :version)
+      usage 'vmc version'
+      set_cmd :misc, :version
 
     when 'target'
-      usage('vmc target [url] [--url]')
+      usage 'vmc target [url] [--url]'
       if @args.size == 1
-        set_cmd(:misc, :set_target, 1)
+        set_cmd :misc, :set_target, 1
       else
-        set_cmd(:misc, :target)
+        set_cmd :misc, :target
       end
 
     when 'targets'
-      usage('vmc targets')
-      set_cmd(:misc, :targets)
+      usage 'vmc targets'
+      set_cmd :misc, :targets
 
     when 'tokens'
-      usage('vmc tokens')
-      set_cmd(:misc, :tokens)
+      usage 'vmc tokens'
+      set_cmd :misc, :tokens
 
     when 'info'
-      usage('vmc info')
-      set_cmd(:misc, :info)
+      usage 'vmc info'
+      set_cmd :misc, :info
 
     when 'runtimes'
-      usage('vmc runtimes')
-      set_cmd(:misc, :runtimes)
+      usage 'vmc runtimes'
+      set_cmd :misc, :runtimes
 
     when 'frameworks'
-      usage('vmc frameworks')
-      set_cmd(:misc, :frameworks)
+      usage 'vmc frameworks'
+      set_cmd :misc, :frameworks
 
     when 'user'
-      usage('vmc user')
-      set_cmd(:user, :info)
+      usage 'vmc user'
+      set_cmd :user, :info
 
     when 'login'
-      usage('vmc login [email] [--email EMAIL] [--passwd PASS]')
+      usage 'vmc login [email] [--email EMAIL] [--passwd PASS]'
       if @args.size == 1
-        set_cmd(:user, :login, 1)
+        set_cmd :user, :login, 1
       else
-        set_cmd(:user, :login)
+        set_cmd :user, :login
       end
 
     when 'logout'
-      usage('vmc logout')
-      set_cmd(:user, :logout)
+      usage 'vmc logout'
+      set_cmd :user, :logout
 
     when 'passwd'
-      usage('vmc passwd')
+      usage 'vmc passwd'
       if @args.size == 1
-        set_cmd(:user, :change_password, 1)
+        set_cmd :user, :change_password, 1
       else
-        set_cmd(:user, :change_password)
+        set_cmd :user, :change_password
       end
 
     when 'add-user', 'add_user', 'create_user', 'create-user', 'register'
-      usage('vmc add-user [user] [--email EMAIL] [--passwd PASS]')
+      usage 'vmc add-user [user] [--email EMAIL] [--passwd PASS]'
       if @args.size == 1
-        set_cmd(:admin, :add_user, 1)
+        set_cmd :admin, :add_user, 1
       else
-        set_cmd(:admin, :add_user)
+        set_cmd :admin, :add_user
       end
 
     when 'delete-user', 'delete_user', 'unregister'
-      usage('vmc delete-user <user>')
-      set_cmd(:admin, :delete_user, 1)
+      usage 'vmc delete-user <user>'
+      set_cmd :admin, :delete_user, 1
 
     when 'users'
-      usage('vmc users')
-      set_cmd(:admin, :users)
+      usage 'vmc users'
+      set_cmd :admin, :users
 
     when 'apps'
-      usage('vmc apps')
-      set_cmd(:apps, :apps)
+      usage 'vmc apps'
+      set_cmd :apps, :apps
 
     when 'list'
-      usage('vmc list')
-      set_cmd(:apps, :list)
+      usage 'vmc list'
+      set_cmd :apps, :list
 
     when 'start'
-      usage('vmc start <appname>')
-      set_cmd(:apps, :start, @args.size == 1 ? 1 : 0)
+      usage 'vmc start <appname>'
+      set_cmd :apps, :start, @args.size == 1 ? 1 : 0
 
     when 'stop'
-      usage('vmc stop <appname>')
-      set_cmd(:apps, :stop, @args.size == 1 ? 1 : 0)
+      usage 'vmc stop <appname>'
+      set_cmd :apps, :stop, @args.size == 1 ? 1 : 0
 
     when 'restart'
-      usage('vmc restart <appname>')
-      set_cmd(:apps, :restart, @args.size == 1 ? 1 : 0)
+      usage 'vmc restart <appname>'
+      set_cmd :apps, :restart, @args.size == 1 ? 1 : 0
 
     when 'mem'
-      usage('vmc mem <appname> [memsize]')
+      usage 'vmc mem <appname> [memsize]'
       if @args.size == 2
-        set_cmd(:apps, :mem, 2)
+        set_cmd :apps, :mem, 2
       else
-        set_cmd(:apps, :mem, 1)
+        set_cmd :apps, :mem, 1
       end
 
     when 'stats'
-      usage('vmc stats <appname>')
-      set_cmd(:apps, :stats, @args.size == 1 ? 1 : 0)
+      usage 'vmc stats <appname>'
+      set_cmd :apps, :stats, @args.size == 1 ? 1 : 0
 
     when 'map'
-      usage('vmc map <appname> <url>')
-      set_cmd(:apps, :map, 2)
+      usage 'vmc map <appname> <url>'
+      set_cmd :apps, :map, 2
 
     when 'unmap'
-      usage('vmc unmap <appname> <url>')
-      set_cmd(:apps, :unmap, 2)
+      usage 'vmc unmap <appname> <url>'
+      set_cmd :apps, :unmap, 2
 
     when 'delete'
-      usage('vmc delete <appname>')
+      usage 'vmc delete <appname>'
       if @options[:all] && @args.size == 0
-        set_cmd(:apps, :delete)
+        set_cmd :apps, :delete
       else
-        set_cmd(:apps, :delete, 1)
+        set_cmd :apps, :delete, 1
       end
 
     when 'files'
-      usage('vmc files <appname> [path] [--instance N] [--all] [--prefix]')
+      usage 'vmc files <appname> [path] [--instance N] [--all] [--prefix]'
       if @args.size == 1
-        set_cmd(:apps, :files, 1)
+        set_cmd :apps, :files, 1
       else
-        set_cmd(:apps, :files, 2)
+        set_cmd :apps, :files, 2
       end
 
     when 'logs'
-      usage('vmc logs <appname> [--instance N] [--all] [--prefix]')
-      set_cmd(:apps, :logs, 1)
+      usage 'vmc logs <appname> [--instance N] [--all] [--prefix]'
+      set_cmd :apps, :logs, 1
 
     when 'instances', 'scale'
       if @args.size > 1
-        usage('vmc instances <appname> <num|delta>')
-        set_cmd(:apps, :instances, 2)
+        usage 'vmc instances <appname> <num|delta>'
+        set_cmd :apps, :instances, 2
       else
-        usage('vmc instances <appname>')
-        set_cmd(:apps, :instances, 1)
+        usage 'vmc instances <appname>'
+        set_cmd :apps, :instances, 1
       end
 
     when 'crashes'
-      usage('vmc crashes <appname>')
-      set_cmd(:apps, :crashes, 1)
+      usage 'vmc crashes <appname>'
+      set_cmd :apps, :crashes, 1
 
     when 'crashlogs'
-      usage('vmc crashlogs <appname>')
-      set_cmd(:apps, :crashlogs, 1)
+      usage 'vmc crashlogs <appname>'
+      set_cmd :apps, :crashlogs, 1
 
     when 'push'
-      usage('vmc push [appname] [--path PATH] [--url URL] [--instances N] [--mem] [--runtime RUNTIME] [--no-start]')
+      usage 'vmc push [appname] [--path PATH] [--url URL] [--instances N] [--mem] [--runtime RUNTIME] [--no-start]'
       if @args.size == 1
-        set_cmd(:apps, :push, 1)
+        set_cmd :apps, :push, 1
       else
-        set_cmd(:apps, :push, 0)
+        set_cmd :apps, :push, 0
       end
 
     when 'update'
-      usage('vmc update <appname> [--path PATH]')
-      set_cmd(:apps, :update, @args.size == 1 ? 1 : 0)
+      usage 'vmc update <appname> [--path PATH]'
+      set_cmd :apps, :update, @args.size == 1 ? 1 : 0
 
     when 'services'
-      usage('vmc services')
-      set_cmd(:services, :services)
+      usage 'vmc services'
+      set_cmd :services, :services
 
     when 'env'
-      usage('vmc env <appname>')
-      set_cmd(:apps, :environment, 1)
+      usage 'vmc env <appname>'
+      set_cmd :apps, :environment, 1
 
     when 'env-add'
-      usage('vmc env-add <appname> <variable[=]value>')
+      usage 'vmc env-add <appname> <variable[=]value>'
       if @args.size == 2
-        set_cmd(:apps, :environment_add, 2)
+        set_cmd :apps, :environment_add, 2
       elsif @args.size == 3
-        set_cmd(:apps, :environment_add, 3)
+        set_cmd :apps, :environment_add, 3
       end
 
     when 'env-del'
-      usage('vmc env-del <appname> <variable>')
-      set_cmd(:apps, :environment_del, 2)
+      usage 'vmc env-del <appname> <variable>'
+      set_cmd :apps, :environment_del, 2
 
     when 'create-service', 'create_service'
-      usage('vmc create-service [service] [servicename] [appname] [--name servicename] [--bind appname]')
-      set_cmd(:services, :create_service) if @args.size == 0
-      set_cmd(:services, :create_service, 1) if @args.size == 1
-      set_cmd(:services, :create_service, 2) if @args.size == 2
-      set_cmd(:services, :create_service, 3) if @args.size == 3
+      usage 'vmc create-service [service] [servicename] [appname] [--name servicename] [--bind appname]'
+      case @args.size
+      when 0
+        set_cmd :services, :create_service
+      when 1
+        set_cmd :services, :create_service, 1
+      when 2
+        set_cmd :services, :create_service, 2
+      when 3
+        set_cmd :services, :create_service, 3
+      end
 
     when 'delete-service', 'delete_service'
-      usage('vmc delete-service <service>')
+      usage 'vmc delete-service <service>'
       if @args.size == 1
-        set_cmd(:services, :delete_service, 1)
+        set_cmd :services, :delete_service, 1
       else
-        set_cmd(:services, :delete_service)
+        set_cmd :services, :delete_service
       end
 
     when 'bind-service', 'bind_service'
-      usage('vmc bind-service <servicename> <appname>')
-      set_cmd(:services, :bind_service, 2)
+      usage 'vmc bind-service <servicename> <appname>'
+      set_cmd :services, :bind_service, 2
 
     when 'unbind-service', 'unbind_service'
-      usage('vmc unbind-service <servicename> <appname>')
-      set_cmd(:services, :unbind_service, 2)
+      usage 'vmc unbind-service <servicename> <appname>'
+      set_cmd :services, :unbind_service, 2
 
     when 'clone-services'
-      usage('vmc clone-services <src-app> <dest-app>')
-      set_cmd(:services, :clone_services, 2)
+      usage 'vmc clone-services <src-app> <dest-app>'
+      set_cmd :services, :clone_services, 2
 
     when 'aliases'
-      usage('vmc aliases')
-      set_cmd(:misc, :aliases)
+      usage 'vmc aliases'
+      set_cmd :misc, :aliases
 
     when 'alias'
-      usage('vmc alias <alias[=]command>')
+      usage 'vmc alias <alias[=]command>'
       if @args.size == 1
-        set_cmd(:misc, :alias, 1)
+        set_cmd :misc, :alias, 1
       elsif @args.size == 2
-        set_cmd(:misc, :alias, 2)
+        set_cmd :misc, :alias, 2
       end
 
     when 'unalias'
-      usage('vmc unalias <alias>')
-      set_cmd(:misc, :unalias, 1)
+      usage 'vmc unalias <alias>'
+      set_cmd :misc, :unalias, 1
 
     when 'tunnel'
-      usage('vmc tunnel [servicename] [clientcmd] [--port port]')
-      set_cmd(:services, :tunnel, 0) if @args.size == 0
-      set_cmd(:services, :tunnel, 1) if @args.size == 1
-      set_cmd(:services, :tunnel, 2) if @args.size == 2
+      usage 'vmc tunnel [servicename] [clientcmd] [--port port]'
+      set_cmd :services, :tunnel, @args.size
 
     when 'rails-console'
-      usage('vmc rails-console <appname>')
-      set_cmd(:apps, :console, 1)
+      usage 'vmc rails-console <appname>'
+      set_cmd :apps, :console, 1
 
     when 'micro'
-      usage('vmc micro <online|offline|status> [--password password] [--save] [--vmx file] [--vmrun executable]')
+      usage 'vmc micro <online|offline|status> [--password password] [--save] [--vmx file] [--vmrun executable]'
       if %w[online offline status].include?(@args[0])
-          set_cmd(:micro, @args[0].to_sym, 1)
+        set_cmd :micro, @args[0].to_sym, 1
       end
 
     when 'help'
@@ -398,26 +400,26 @@ class VMC::Cli::Runner
 
     when 'usage'
       display basic_usage
-      exit(true)
+      exit true
 
     when 'options'
       # Simulate --options
-      @args = @args.unshift('--options')
+      @args = @args.unshift '--options'
       parse_options!
 
     when 'manifest'
-      usage('vmc manifest')
-      set_cmd(:manifest, :edit)
+      usage 'vmc manifest'
+      set_cmd :manifest, :edit
 
     when 'extend-manifest'
-      usage('vmc extend-manifest')
-      set_cmd(:manifest, :extend, 1)
+      usage 'vmc extend-manifest'
+      set_cmd :manifest, :extend, 1
 
     else
       if verb
         display "vmc: Unknown command [#{verb}]"
         display basic_usage
-        exit(false)
+        exit false
       end
     end
   end
@@ -429,7 +431,7 @@ class VMC::Cli::Runner
       if @args[0] == k
         display "[#{@args[0]} aliased to #{aliases.invert[key]}]" if @options[:verbose]
         @args[0] = v
-        break;
+        break
       end
     end
   end
@@ -445,40 +447,37 @@ class VMC::Cli::Runner
   end
 
   def run
-
-    trap('TERM') { print "\nTerminated\n"; exit(false)}
+    trap 'TERM' do
+      print "\nTerminated\n"
+      exit false
+    end
 
     parse_options!
 
     @options[:colorize] = false unless STDOUT.tty?
 
-    VMC::Cli::Config.colorize   = @options.delete(:colorize)
-    VMC::Cli::Config.nozip      = @options.delete(:nozip)
-    VMC::Cli::Config.trace      = @options.delete(:trace)
+    VMC::Cli::Config.colorize   = @options.delete :colorize
+    VMC::Cli::Config.nozip      = @options.delete :nozip
+    VMC::Cli::Config.trace      = @options.delete :trace
     VMC::Cli::Config.output   ||= STDOUT unless @options[:quiet]
 
     process_aliases!
     parse_command!
 
     if @namespace && @action
-      cmd = VMC::Cli::Command.const_get(@namespace.to_s.capitalize)
-      cmd.new(@options).send(@action, *@args.collect(&:dup))
+      cmd = VMC::Cli::Command.const_get @namespace.to_s.capitalize
+      cmd.new(@options).send @action, *@args.collect(&:dup)
     elsif @help_only || @usage
       display_usage
     else
       display basic_usage
-      exit(false)
+      exit false
     end
 
-  rescue OptionParser::InvalidOption => e
-    puts(e.message.red)
-    puts("\n")
-    puts(basic_usage)
-    @exit_status = false
-  rescue OptionParser::AmbiguousOption => e
-    puts(e.message.red)
-    puts("\n")
-    puts(basic_usage)
+  rescue OptionParser::InvalidOption, OptionParser::AmbiguousOption => e
+    puts e.message.red
+    puts "\n"
+    puts basic_usage
     @exit_status = false
   rescue VMC::Client::AuthError => e
     if VMC::Cli::Config.auth_token.nil?
@@ -487,19 +486,19 @@ class VMC::Cli::Runner
       puts "Not Authorized".red
     end
     @exit_status = false
-  rescue VMC::Client::TargetError, VMC::Client::NotFound, VMC::Client::BadTarget  => e
+  rescue VMC::Client::TargetError, VMC::Client::NotFound, VMC::Client::BadTarget => e
     puts e.message.red
     @exit_status = false
   rescue VMC::Client::HTTPException => e
     puts e.message.red
     @exit_status = false
-  rescue VMC::Cli::GracefulExit => e
+  rescue VMC::Cli::GracefulExit
     # Redirected commands end up generating this exception (kind of goto)
   rescue VMC::Cli::CliExit => e
     puts e.message.red
     @exit_status = false
   rescue VMC::Cli::CliError => e
-    say("Error #{e.error_code}: #{e.message}".red)
+    say "Error #{e.error_code}: #{e.message}".red
     @exit_status = false
   rescue SystemExit => e
     @exit_status = e.success?
@@ -508,14 +507,14 @@ class VMC::Cli::Runner
     puts e.backtrace
     @exit_status = false
   rescue Interrupt => e
-    say("\nInterrupted".red)
+    say "\nInterrupted".red
     @exit_status = false
   rescue Exception => e
     puts e.message.red
     puts e.backtrace
     @exit_status = false
   ensure
-    say("\n")
+    say "\n"
     @exit_status == true if @exit_status.nil?
     if @options[:verbose]
       if @exit_status
@@ -523,9 +522,9 @@ class VMC::Cli::Runner
       else
         puts "[#{@namespace}:#{@action}] FAILED".red
       end
-      say("\n")
+      say "\n"
     end
-    exit(@exit_status)
+    exit @exit_status
   end
 
 end

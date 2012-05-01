@@ -7,7 +7,7 @@ module VMC::Micro::Switcher
     def initialize(config)
       @config = config
 
-      @vmrun = VMC::Micro::VMrun.new(config)
+      @vmrun = VMC::Micro::VMrun.new config
       unless @vmrun.running?
         if ask("Micro Cloud Foundry VM is not running. Do you want to start it?", :choices => ['y', 'n']) == 'y'
           display "Starting Micro Cloud Foundry VM: ", false
@@ -26,7 +26,7 @@ module VMC::Micro::Switcher
         # save online connection type so we can restore it later
         @config['online_connection_type'] = @vmrun.connection_type
 
-        if (@config['online_connection_type'] != 'nat')
+        unless @config['online_connection_type'] == 'nat'
           if ask("Reconfigure Micro Cloud Foundry VM network to nat mode and reboot?", :choices => ['y', 'n']) == 'y'
             display "Rebooting Micro Cloud Foundry VM: ", false
             @vmrun.connection_type = 'nat'
@@ -56,7 +56,7 @@ module VMC::Micro::Switcher
         current_connection_type = @vmrun.connection_type
         @config['online_connection_type'] ||= current_connection_type
 
-        if (@config['online_connection_type'] != current_connection_type)
+        unless @config['online_connection_type'] == current_connection_type
           # TODO handle missing connection type in saved config
           question = "Reconfigure Micro Cloud Foundry VM network to #{@config['online_connection_type']} mode and reboot?"
           if ask(question, :choices => ['y', 'n']) == 'y'
@@ -73,7 +73,7 @@ module VMC::Micro::Switcher
         # TODO handle missing domain and ip in saved config (look at the VM)
         @config['domain'] ||= @vmrun.domain
         @config['ip'] ||= @vmrun.ip
-        unset_nameserver(@config['domain'], @config['ip'])
+        unset_nameserver @config['domain'], @config['ip']
         say "done".green
 
         display "Setting Micro Cloud Foundry VM to online mode: ", false
