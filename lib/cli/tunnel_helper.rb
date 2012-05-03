@@ -54,6 +54,7 @@ module VMC::Cli
 
         # https failed
         rescue Errno::ECONNREFUSED
+        rescue Errno::ETIMEDOUT
 
         # we expect a 404 since this request isn't auth'd
         rescue RestClient::ResourceNotFound
