@@ -18,6 +18,7 @@ module VMC::Cli
       'Erlang/OTP Rebar' => ['otp_rebar',  { :mem => '64M',  :description => 'Erlang/OTP Rebar Application'}],
       'WSGI'     => ['wsgi',    { :mem => '64M',  :description => 'Python WSGI Application'}],
       'Django'   => ['django',  { :mem => '128M', :description => 'Python Django Application'}],
+      'ASP.NET 4.0'  => ['aspdotnet', { :mem => '64M', :description => 'ASP.NET 4.0 Application'}],
       'dotNet'   => ['dotNet',  { :mem => '128M', :description => '.Net Web Application'}],
       'Rack'     => ['rack', { :mem => '128M', :description => 'Rack Application'}]
     }
@@ -93,6 +94,12 @@ module VMC::Cli
               return f
             end
 
+          # ASP.NET 4.0
+          elsif !Dir.glob('*.config').empty?
+            if File.exist?('web.config')
+              return Framework.lookup('ASP.NET 4.0')
+            end
+
           # PHP
           elsif !Dir.glob('*.php').empty?
             return Framework.lookup('PHP')
@@ -109,6 +116,7 @@ module VMC::Cli
           # Python
           elsif !Dir.glob('wsgi.py').empty?
             return Framework.lookup('WSGI')
+
           # .Net
           elsif !Dir.glob('web.config').empty?
             return Framework.lookup('dotNet')
