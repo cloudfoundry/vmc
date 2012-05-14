@@ -1,0 +1,5 @@
+*.gem
+.rbenv-gemsets
+.bundle
+Gemfile.lock
+pkg/*
