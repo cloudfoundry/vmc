@@ -4,6 +4,9 @@
 require "rubygems"
 require "thor"
 
+# temporarily do this while we're in the glue stage
+$LOAD_PATH.unshift File.expand_path("../../lib", __FILE__)
+
 require "vmc"
 require "vmc/plugin"
 
