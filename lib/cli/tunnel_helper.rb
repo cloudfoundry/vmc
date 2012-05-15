@@ -26,7 +26,7 @@ module VMC::Cli
     end
 
     def tunnel_app_info
-      return @tun_app_info if @tunnel_app_info
+      return @tun_app_info if @tun_app_info
       begin
         @tun_app_info = client.app_info(tunnel_appname)
       rescue => e
