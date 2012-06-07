@@ -405,7 +405,7 @@ module VMC
 
       puts "" unless simple_output?
 
-      print file
+      puts file
     end
 
     desc "files APP [PATH]", "Examine an app's files"
@@ -417,9 +417,8 @@ module VMC
         end
 
       puts "" unless simple_output?
-
       files.each do |file|
-        puts file
+        puts file.join("/")
       end
     end
 
