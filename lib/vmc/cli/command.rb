@@ -373,7 +373,9 @@ module VMC
         VMC::CLI.start(["login"])
         @client = nil
 
-        retry
+        unless $exit_status == 130
+          retry
+        end
       end
 
       err "Denied: #{e.description}"
