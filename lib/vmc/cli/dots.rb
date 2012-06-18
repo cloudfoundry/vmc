@@ -57,7 +57,7 @@ module VMC
 
     WINDOWS = !!(RbConfig::CONFIG['host_os'] =~ /mingw|mswin32|cygwin/)
 
-    def color?
+    def use_colors?
       !WINDOWS && $stdout.tty?
     end
 
@@ -120,7 +120,7 @@ module VMC
     # shouldn't use bright colors, as some color themes abuse
     # the bright palette (I'm looking at you, Solarized)
     def c(str, type)
-      return str unless color?
+      return str unless use_colors?
 
       bright = false
       color = user_colors[type]
@@ -137,7 +137,7 @@ module VMC
 
     # bold text
     def b(str)
-      return str unless color?
+      return str unless use_colors?
       "\e[1m#{str}\e[0m"
     end
     module_function :b
