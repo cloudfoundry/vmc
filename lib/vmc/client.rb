@@ -325,7 +325,7 @@ class VMC::Client
     # we have tmp_authn_target, do the OAuth2 dance to the UAA
     uri = "#{path(VMC::LOGIN_TOKEN_PATH)}?client_id=vmc&response_type=token&scope=read" +
           "&redirect_uri=#{URI.encode('http://uaa.cloudfoundry.com/redirect/vmc')}"
-    body = "credentials=#{URI.encode(creds.to_json)}"
+    body = URI.encode_www_form(:credentials => creds.to_json)
     headers = {'Content-Type' => 'application/x-www-form-urlencoded',
           'Accept' => 'application/json'}
     status, body, headers = request(:post, uri, nil, body, headers)
