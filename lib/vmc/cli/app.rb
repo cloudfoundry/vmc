@@ -40,10 +40,18 @@ module VMC
     input :framework, :desc => "Filter by framework regexp"
     input :url, :desc => "Filter by url regexp"
     def apps(input)
-      apps =
-        with_progress("Getting applications") do
-          client.apps
-        end
+      if v2?
+        space = client.current_space
+        apps =
+          with_progress("Getting applications in #{c(space.name, :name)}") do
+            space.apps
+          end
+      else
+        apps =
+          with_progress("Getting applications") do
+            client.apps
+          end
+      end
 
       if apps.empty? and !quiet?
         puts ""
