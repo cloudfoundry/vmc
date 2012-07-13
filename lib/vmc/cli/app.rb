@@ -801,7 +801,7 @@ module VMC
 
       puts "#{c(a.name, :name)}: #{status}"
 
-      puts "  platform: #{b(a.framework)} on #{b(a.runtime)}"
+      puts "  platform: #{b(a.framework.name)} on #{b(a.runtime.name)}"
 
       print "  usage: #{b(human_size(a.memory * 1024 * 1024, 0))}"
       print " #{c(IS_UTF8 ? "\xc3\x97" : "x", :dim)} #{b(a.total_instances)}"
