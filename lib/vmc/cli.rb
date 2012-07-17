@@ -62,10 +62,25 @@ module VMC
       end
     end
 
+    def precondition
+      unless client.logged_in?
+        fail "Please log in with 'vmc login'."
+      end
+
+      unless v2? && client.current_organization
+        fail "Please select an organization with 'vmc org'."
+      end
+
+      unless v2? && client.current_space
+        fail "Please select a space with 'vmc space'."
+      end
+    end
+
     def execute(cmd, argv)
       if option(:help)
         invoke :help, :command => cmd.name.to_s
       else
+        cmd.context.new.precondition if cmd.context <= CLI
         super
       end
     rescue Interrupt
