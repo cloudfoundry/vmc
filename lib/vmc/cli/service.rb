@@ -1,7 +1,10 @@
 require "vmc/cli"
+require "vmc/cli/helpers/service"
 
 module VMC
   class Service < CLI
+    include CLI::ServiceHelpers
+
     def self.find_by_name(what)
       proc { |name, choices|
         choices.find { |c| c.name == name } ||
@@ -36,7 +39,8 @@ module VMC
       end
 
       instances.each.with_index do |i, n|
-        display_instance(i) if instance_matches(i, input)
+        puts "" unless quiet?
+        display_service_instance(i) if instance_matches(i, input)
       end
     end
 
@@ -267,21 +271,6 @@ module VMC
       end
 
       true
-    end
-
-    def display_instance(i)
-      if quiet?
-        puts i.name
-      else
-        plan = i.service_plan
-        service = plan.service
-
-        puts ""
-        puts "#{c(i.name, :name)}: #{service.label} #{service.version}"
-        puts "  description: #{service.description}"
-        puts "  plan: #{c(plan.name, :name)}"
-        puts "    description: #{plan.description}"
-      end
     end
 
     def human_list(xs)
