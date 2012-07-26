@@ -116,6 +116,11 @@ module VMC
       with_progress("Creating space #{c(space.name, :name)}") do
         space.create!
       end
+
+      with_progress("Adding you to the space") do
+        space.add_manager client.current_user
+        space.add_developer client.current_user
+      end
     end
 
     private
