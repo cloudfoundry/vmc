@@ -1,427 +1,330 @@
-require "vmc/cli/command"
+require "yaml"
+require "socket"
+require "net/http"
 
-VMC::Command.groups(
-  [:start, "Getting Started"],
-  [:apps, "Applications",
-    [:manage, "Management"],
-    [:info, "Information"]],
-  [:services, "Services",
-    [:manage, "Management"]],
-  [:admin, "Administration",
-    [:user, "User Management"]])
+require "mothership"
+require "mothership/pretty"
+require "mothership/progress"
 
-require "vmc/cli/app"
-require "vmc/cli/service"
-require "vmc/cli/user"
+require "cfoundry"
+
+require "vmc/constants"
+require "vmc/errors"
+require "vmc/spacing"
+
+require "vmc/cli/help"
+require "vmc/cli/interactive"
+
+
+$vmc_asked_auth = false
 
 module VMC
-  class CLI < App # subclass App since we operate on Apps by default
-    desc "service SUBCOMMAND ...ARGS", "Service management"
-    subcommand "service", Service
+  class CLI < Mothership
+    include VMC::Interactive
+    include VMC::Spacing
+    include Mothership::Pretty
+    include Mothership::Progress
 
-    desc "user SUBCOMMAND ...ARGS", "User management"
-    subcommand "user", User
+    option :help, :alias => "-h", :type => :boolean,
+      :desc => "Show command usage & instructions"
 
-    desc "info", "Display information on the current target, user, etc."
-    group :start
-    flag :runtimes, :default => false
-    flag :services, :default => false
-    flag :frameworks, :default => false
-    def info
-      info =
-        with_progress("Getting target information") do
-          client.info
-        end
+    option :proxy, :alias => "-u", :value => :email,
+      :desc => "Act as another user (admin only)"
 
-      authorized = !!info["frameworks"]
+    option :version, :alias => "-v", :type => :boolean,
+      :desc => "Print version number"
 
-      if input(:runtimes)
-        raise NotAuthorized unless authorized
+    option(:force, :alias => "-f", :type => :boolean,
+           :desc => "Skip interaction when possible") {
+      option(:script)
+    }
 
-        runtimes = {}
-        info["frameworks"].each do |_, f|
-          f["runtimes"].each do |r|
-            runtimes[r["name"]] = r
-          end
-        end
+    option(:quiet, :alias => "-q", :type => :boolean,
+           :desc => "Simplify output format") {
+      option(:script)
+    }
 
-        runtimes = runtimes.values.sort_by { |x| x["name"] }
+    option(:script, :type => :boolean,
+           :desc => "Shortcut for --quiet and --force") {
+      !$stdout.tty?
+    }
 
-        if simple_output?
-          runtimes.each do |r|
-            puts r["name"]
-          end
-          return
-        end
+    option(:color, :type => :boolean, :default => true,
+           :desc => "Use colorful output") {
+      !option(:quiet)
+    }
 
-        runtimes.each do |r|
-          puts ""
-          puts "#{c(r["name"], :name)}:"
-          puts "  version: #{b(r["version"])}"
-          puts "  description: #{b(r["description"])}"
-        end
+    option :trace, :alias => "-t", :type => :boolean,
+      :desc => "Show API requests and responses"
 
-        return
+
+    def default_action
+      if option(:version)
+        line "vmc #{VERSION}"
+      else
+        super
+      end
+    end
+
+    def precondition
+      unless client.logged_in?
+        fail "Please log in with 'vmc login'."
       end
 
-      if input(:services)
-        raise NotAuthorized unless authorized
+      return unless v2?
 
-        services = client.system_services
-
-        if simple_output?
-          services.each do |name, _|
-            puts name
-          end
-
-          return
-        end
-
-        services.each do |name, meta|
-          puts ""
-          puts "#{c(name, :name)}:"
-          puts "  versions: #{meta[:versions].join ", "}"
-          puts "  description: #{meta[:description]}"
-          puts "  type: #{meta[:type]}"
-        end
-
-        return
+      unless client.current_organization
+        fail "Please select an organization with 'vmc target -i'."
       end
 
-      if input(:frameworks)
-        raise NotAuthorized unless authorized
+      unless client.current_space
+        fail "Please select a space with 'vmc target -i'."
+      end
+    end
 
-        puts "" unless simple_output?
+    def execute(cmd, argv)
+      if option(:help)
+        invoke :help, :command => cmd.name.to_s
+      else
+        cmd.context.new.precondition if cmd.context <= CLI
+        super
+      end
+    rescue Interrupt
+      exit_status 130
+    rescue Mothership::Error
+      raise
+    rescue UserError => e
+      log_error(e)
+      err e.message
+    rescue CFoundry::Denied => e
+      if !$vmc_asked_auth && e.error_code == 200
+        $vmc_asked_auth = true
 
-        info["frameworks"].each do |name, _|
-          puts name
+        line
+        line c("Not authenticated! Try logging in:", :warning)
+
+        invoke :login
+
+        unless $exit_status == 130
+          retry
         end
-
-        return
       end
 
-      puts ""
+      log_error(e)
 
-      puts info["description"]
-      puts ""
-      puts "target: #{b(client.target)}"
-      puts "  version: #{info["version"]}"
-      puts "  support: #{info["support"]}"
+      err "Denied: #{e.description}"
 
-      if info["user"]
-        puts ""
-        puts "user: #{b(info["user"])}"
-        puts "  usage:"
+    rescue Exception => e
+      ensure_config_dir
 
-        limits = info["limits"]
-        info["usage"].each do |k, v|
-          m = limits[k]
-          if k == "memory"
-            puts "    #{k}: #{usage(v * 1024 * 1024, m * 1024 * 1024)}"
+      log_error(e)
+
+      msg = e.class.name
+      msg << ": #{e}" unless e.to_s.empty?
+      err msg
+    end
+
+    def log_error(e)
+      msg = e.class.name
+      msg << ": #{e}" unless e.to_s.empty?
+
+      File.open(File.expand_path(VMC::CRASH_FILE), "w") do |f|
+        f.puts "Time of crash:"
+        f.puts "  #{Time.now}"
+        f.puts ""
+        f.puts msg
+        f.puts ""
+
+        vmc_dir = File.expand_path("../../../..", __FILE__) + "/"
+        e.backtrace.each do |loc|
+          if loc =~ /\/gems\//
+            f.puts loc.sub(/.*\/gems\//, "")
           else
-            puts "    #{k}: #{b(v)} of #{b(m)} limit"
+            f.puts loc.sub(vmc_dir, "")
           end
         end
       end
     end
 
-    desc "target [URL]", "Set or display the current target cloud"
-    group :start
-    def target(url = nil)
-      if url.nil?
-        display_target
-        return
+    def quiet?
+      option(:quiet)
+    end
+
+    def force?
+      option(:force)
+    end
+
+    def color_enabled?
+      option(:color)
+    end
+
+    def err(msg, status = 1)
+      if quiet?
+        $stderr.puts(msg)
+      else
+        puts c(msg, :error)
       end
 
-      target = sane_target_url(url)
-      display = c(target.sub(/https?:\/\//, ""), :name)
-      with_progress("Setting target to #{display}") do
-        unless force?
-          # check that the target is valid
-          CFoundry::Client.new(target).info
-        end
+      exit_status status
+    end
 
-        set_target(target)
+    def fail(msg)
+      raise UserError, msg
+    end
+
+    def sane_target_url(url)
+      unless url =~ /^https?:\/\//
+        begin
+          TCPSocket.new(url, Net::HTTP.https_default_port)
+          url = "https://#{url}"
+        rescue SocketError, Timeout::Error
+          url = "http://#{url}"
+        end
+      end
+
+      url.gsub(/\/$/, "")
+    end
+
+    def target_file
+      one_of(VMC::TARGET_FILE, VMC::OLD_TARGET_FILE)
+    end
+
+    def tokens_file
+      one_of(VMC::TOKENS_FILE, VMC::OLD_TOKENS_FILE)
+    end
+
+    def one_of(*paths)
+      paths.each do |p|
+        exp = File.expand_path(p)
+        return exp if File.exist? exp
+      end
+
+      paths.first
+    end
+
+    def client_target
+      File.read(target_file).chomp
+    end
+
+    def ensure_config_dir
+      config = File.expand_path(VMC::CONFIG_DIR)
+      Dir.mkdir(config) unless File.exist? config
+    end
+
+    def set_target(url)
+      ensure_config_dir
+
+      File.open(File.expand_path(VMC::TARGET_FILE), "w") do |f|
+        f.write(sane_target_url(url))
+      end
+
+      invalidate_client
+    end
+
+    def targets_info
+      new_toks = File.expand_path(VMC::TOKENS_FILE)
+      old_toks = File.expand_path(VMC::OLD_TOKENS_FILE)
+
+      if File.exist? new_toks
+        YAML.load_file(new_toks)
+      elsif File.exist? old_toks
+        JSON.load(File.read(old_toks))
+      else
+        {}
       end
     end
 
-    desc "login [EMAIL]", "Authenticate with the target"
-    group :start
-    flag(:email) {
-      ask("Email")
-    }
-    flag(:password)
-    # TODO: implement new authentication scheme
-    def login(email = nil)
-      unless simple_output?
-        display_target
-        puts ""
+    def target_info
+      info = targets_info[client_target]
+
+      if info.is_a? String
+        { :token => info }
+      else
+        info || {}
       end
+    end
 
-      email ||= input(:email)
-      password = input(:password)
+    def save_targets(ts)
+      ensure_config_dir
 
-      authenticated = false
-      failed = false
-      until authenticated
-        unless force?
-          if failed || !password
-            password = ask("Password", :echo => "*", :forget => true)
+      File.open(File.expand_path(VMC::TOKENS_FILE), "w") do |io|
+        YAML.dump(ts, io)
+      end
+    end
+
+    def save_target_info(info)
+      ts = targets_info
+      ts[client_target] = info
+      save_targets(ts)
+    end
+
+    def remove_target_info
+      ts = targets_info
+      ts.delete client_target
+      save_targets(ts)
+    end
+
+    def no_v2
+      fail "Not implemented for v2." if v2?
+    end
+
+    def v2?
+      client.is_a?(CFoundry::V2::Client)
+    end
+
+    def invalidate_client
+      @@client = nil
+      client
+    end
+
+    def client
+      return @@client if defined?(@@client) && @@client
+
+      info = target_info
+
+      @@client =
+        case info[:version]
+        when 2
+          CFoundry::V2::Client.new(client_target, info[:token])
+        when 1
+          CFoundry::V1::Client.new(client_target, info[:token])
+        else
+          CFoundry::Client.new(client_target, info[:token])
+        end
+
+      @@client.proxy = option(:proxy)
+      @@client.trace = option(:trace)
+
+      unless info.key? :version
+        info[:version] =
+          case @@client
+          when CFoundry::V2::Client
+            2
+          else
+            1
           end
-        end
 
-        with_progress("Authenticating") do |s|
-          begin
-            save_token(client.login(email, password))
-            authenticated = true
-          rescue CFoundry::Denied
-            return if force?
-
-            s.fail do
-              failed = true
-            end
-          end
-        end
+        save_target_info(info)
       end
-    ensure
-      $exit_status = 1 if not authenticated
+
+      if org = info[:organization]
+        @@client.current_organization = @@client.organization(org)
+      end
+
+      if space = info[:space]
+        @@client.current_space = @@client.space(space)
+      end
+
+      @@client
     end
 
-    desc "logout", "Log out from the target"
-    group :start
-    def logout
-      with_progress("Logging out") do
-        remove_token
-      end
-    end
-
-    desc "register [EMAIL]", "Create a user and log in"
-    group :start, :hidden => true
-    flag(:email) {
-      ask("Email")
-    }
-    flag(:password) {
-      ask("Password", :echo => "*", :forget => true)
-    }
-    flag(:verify_password) {
-      ask("Confirm Password", :echo => "*", :forget => true)
-    }
-    flag(:no_login, :type => :boolean)
-    def register(email = nil)
-      unless simple_output?
-        puts "Target: #{c(client_target, :name)}"
-        puts ""
+    class << self
+      def client
+        @@client
       end
 
-      email ||= input(:email)
-      password ||= input(:password)
-
-      if !force? && password != input(:verify_password)
-        fail "Passwords do not match."
-      end
-
-      with_progress("Creating user") do
-        client.register(email, password)
-      end
-
-      unless input(:skip_login)
-        with_progress("Logging in") do
-          save_token(client.login(email, password))
-        end
-      end
-    end
-
-    desc "apps", "List your applications"
-    group :apps
-    flag :name, :desc => "Filter by name regexp"
-    flag :runtime, :desc => "Filter by runtime regexp"
-    flag :framework, :desc => "Filter by framework regexp"
-    flag :url, :desc => "Filter by url regexp"
-    def apps
-      apps =
-        with_progress("Getting applications") do
-          client.apps
-        end
-
-      if apps.empty? and !simple_output?
-        puts ""
-        puts "No applications."
-        return
-      end
-
-      apps.each.with_index do |a, num|
-        display_app(a) if app_matches(a)
-      end
-    end
-
-    desc "services", "List your services"
-    group :services
-    flag :name, :desc => "Filter by name regexp"
-    flag :app, :desc => "Filter by bound application regexp"
-    flag :type, :desc => "Filter by service type regexp"
-    flag :vendor, :desc => "Filter by service vendor regexp"
-    flag :tier, :desc => "Filter by service tier regexp"
-    def services
-      services =
-        with_progress("Getting services") do
-          client.services
-        end
-
-      puts "" unless simple_output?
-
-      if services.empty? and !simple_output?
-        puts "No services."
-      end
-
-      if app = options[:app]
-        apps = client.apps
-        services.reject! do |s|
-          apps.none? { |a| a.services.include? s.name }
-        end
-      end
-
-      services.each do |s|
-        display_service(s) if service_matches(s)
-      end
-    end
-
-    desc "users", "List all users"
-    group :admin, :hidden => true
-    def users
-      users =
-        with_progress("Getting users") do
-          client.users
-        end
-
-      users.each do |u|
-        display_user(u)
-      end
-    end
-
-    desc "help [COMMAND]", "Usage instructions"
-    flag :all, :default => false
-    group :start
-    def help(task = nil)
-      if options[:version]
-        puts "vmc #{VERSION}"
-        return
-      end
-
-      if task
-        self.class.task_help(@shell, task)
-      else
-        unless input(:all)
-          puts "Showing basic command set. Pass --all to list all commands."
-          puts ""
-        end
-
-        self.class.print_help_groups(input(:all))
-      end
-    end
-
-    desc "colors", "Show color configuration"
-    group :start, :hidden => true
-    def colors
-      user_colors.each do |n, c|
-        puts "#{n}: #{c(c.to_s, n)}"
-      end
-    end
-
-    private
-
-    def app_matches(a)
-      if name = options[:name]
-        return false if a.name !~ /#{name}/
-      end
-
-      if runtime = options[:runtime]
-        return false if a.runtime !~ /#{runtime}/
-      end
-
-      if framework = options[:framework]
-        return false if a.framework !~ /#{framework}/
-      end
-
-      if url = options[:url]
-        return false if a.urls.none? { |u| u =~ /#{url}/ }
-      end
-
-      true
-    end
-
-    IS_UTF8 = !!(ENV["LC_ALL"] || ENV["LC_CTYPE"] || ENV["LANG"])["UTF-8"]
-
-    def display_app(a)
-      if simple_output?
-        puts a.name
-        return
-      end
-
-      puts ""
-
-      status = app_status(a)
-
-      puts "#{c(a.name, :name)}: #{status}"
-
-      puts "  platform: #{b(a.framework)} on #{b(a.runtime)}"
-
-      print "  usage: #{b(human_size(a.memory * 1024 * 1024, 0))}"
-      print " #{c(IS_UTF8 ? "\xc3\x97" : "x", :dim)} #{b(a.total_instances)}"
-      print " instance#{a.total_instances == 1 ? "" : "s"}"
-      puts ""
-
-      unless a.urls.empty?
-        puts "  urls: #{a.urls.collect { |u| b(u) }.join(", ")}"
-      end
-
-      unless a.services.empty?
-        puts "  services: #{a.services.collect { |s| b(s) }.join(", ")}"
-      end
-    end
-
-    def service_matches(s)
-      if name = options[:name]
-        return false if s.name !~ /#{name}/
-      end
-
-      if type = options[:type]
-        return false if s.type !~ /#{type}/
-      end
-
-      if vendor = options[:vendor]
-        return false if s.vendor !~ /#{vendor}/
-      end
-
-      if tier = options[:tier]
-        return false if s.tier !~ /#{tier}/
-      end
-
-      true
-    end
-
-    def display_service(s)
-      if simple_output?
-        puts s.name
-      else
-        puts "#{c(s.name, :name)}: #{s.vendor} v#{s.version}"
-      end
-    end
-
-    def display_user(u)
-      if simple_output?
-        puts u.email
-      else
-        puts ""
-        puts "#{c(u.email, :name)}:"
-        puts "  admin?: #{c(u.admin?, u.admin? ? :yes : :no)}"
-      end
-    end
-
-    def display_target
-      if simple_output?
-        puts client.target
-      else
-        puts "Target: #{c(client.target, :name)}"
+      def client=(c)
+        @@client = c
       end
     end
   end

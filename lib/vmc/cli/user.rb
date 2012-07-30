@@ -1,23 +1,37 @@
-require "vmc/cli/command"
+require "vmc/cli"
 
 module VMC
-  class User < Command
-    desc "create [EMAIL]", "Create a user"
+  class User < CLI
+    desc "List all users"
+    group :admin, :hidden => true
+    def users(input)
+      users =
+        with_progress("Getting users") do
+          client.users
+        end
+
+      spaced(users) do |u|
+        display_user(u)
+      end
+    end
+
+
+    desc "Create a user"
     group :admin, :user, :hidden => true
-    flag(:email) {
+    input(:email, :argument => true, :desc => "User email") {
       ask("Email")
     }
-    flag(:password) {
+    input(:password, :desc => "User password") {
       ask("Password", :echo => "*", :forget => true)
     }
-    flag(:verify) {
+    input(:verify, :desc => "Repeat password") {
       ask("Verify Password", :echo => "*", :forget => true)
     }
-    def create(email = nil)
-      email ||= input(:email)
-      password = input(:password)
+    def create_user(input)
+      email = input[:email]
+      password = input[:password]
 
-      if !force? && password != input(:verify)
+      if !force? && password != input[:verify]
         fail "Passwords don't match."
       end
 
@@ -26,36 +40,39 @@ module VMC
       end
     end
 
-    desc "delete [EMAIL]", "Delete a user"
+    alias_command :create_user, :add_user
+
+
+    desc "Delete a user"
     group :admin, :user, :hidden => true
-    flag(:really) { |email|
+    input :email, :argument => true, :desc => "User to delete"
+    input(:really, :type => :boolean, :forget => true) { |email|
       force? || ask("Really delete user #{c(email, :name)}?", :default => false)
     }
-    def delete(email)
-      return unless input(:really, email)
+    def delete_user(input)
+      return unless input[:really, email]
 
       with_progress("Deleting #{c(email, :name)}") do
         client.user(email).delete!
       end
-    ensure
-      forget(:really)
     end
 
-    desc "passwd [EMAIL]", "Update a user's password"
+
+    desc "Update a user's password"
     group :admin, :user, :hidden => true
-    flag(:email) {
+    input(:email, :argument => true, :desc => "User to update") {
       ask("Email")
     }
-    flag(:password) {
+    input(:password, :desc => "New password") {
       ask("Password", :echo => "*", :forget => true)
     }
-    flag(:verify) {
+    input(:verify, :desc => "Repeat new password") {
       ask("Verify Password", :echo => "*", :forget => true)
     }
-    def passwd(email = nil)
-      email ||= input(:email)
-      password = input(:password)
-      verify = input(:verify)
+    def passwd(input)
+      email = input[:email]
+      password = input[:password]
+      verify = input[:verify]
 
       if password != verify
         fail "Passwords don't match."
@@ -65,6 +82,20 @@ module VMC
         user = client.user(email)
         user.password = password
         user.update!
+      end
+    end
+
+    private
+
+    def display_user(u)
+      if quiet?
+        puts u.email
+      else
+        line "#{c(u.email, :name)}:"
+
+        indented do
+          line "admin?: #{c(u.admin?, u.admin? ? :yes : :no)}"
+        end
       end
     end
   end

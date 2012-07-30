@@ -1,8 +1,10 @@
-require "vmc/cli/command"
+require "set"
+
+require "vmc/cli"
 require "vmc/detect"
 
 module VMC
-  class App < Command
+  class App < CLI
     MEM_CHOICES = ["64M", "128M", "256M", "512M"]
 
     # TODO: don't hardcode; bring in from remote
@@ -33,14 +35,79 @@ module VMC
     }
 
 
-    desc "push [NAME]", "Push an application, syncing changes if it exists"
+    def self.find_by_name(what)
+      proc { |name, choices|
+        choices.find { |c| c.name == name } ||
+          fail("Unknown #{what} '#{name}'")
+      }
+    end
+
+    def self.by_name(what)
+      proc { |name|
+        client.send(:"#{what}_by_name", name) ||
+          fail("Unknown #{what} '#{name}'")
+      }
+    end
+
+
+    desc "List your applications"
+    group :apps
+    input :space, :desc => "Show apps in given space",
+      :from_given => by_name("space")
+    input :name, :desc => "Filter by name regexp"
+    input :runtime, :desc => "Filter by runtime regexp"
+    input :framework, :desc => "Filter by framework regexp"
+    input :url, :desc => "Filter by url regexp"
+    def apps(input)
+      if space = input[:space] || client.current_space
+        apps =
+          with_progress("Getting applications in #{c(space.name, :name)}") do
+            # depth of 2 for service binding instance names
+            space.apps(2)
+          end
+      else
+        apps =
+          with_progress("Getting applications") do
+            client.apps
+          end
+      end
+
+      if apps.empty? and !quiet?
+        line "No applications."
+        return
+      end
+
+      line unless quiet?
+
+      apps.reject! do |a|
+        !app_matches(a, input)
+      end
+
+      spaced(apps) do |a|
+        display_app(a)
+      end
+    end
+
+
+    desc "Show app information"
+    group :apps
+    input :app, :argument => :required, :from_given => by_name("app"),
+      :desc => "App to show"
+    def app(input)
+      display_app(input[:app])
+    end
+
+    desc "Push an application, syncing changes if it exists"
     group :apps, :manage
-    flag(:name) { ask("Name") }
-    flag(:path)
-    flag(:url) { |default|
+    input(:name, :argument => true, :desc => "Application name") {
+      ask("Name")
+    }
+    input :path, :default => ".",
+      :desc => "Path containing the application"
+    input(:url, :desc => "URL bound to app") { |default|
       ask("URL", :default => default)
     }
-    flag(:memory) { |framework, runtime|
+    input(:memory, :desc => "Memory limit") { |framework, runtime|
       ask("Memory Limit",
           :choices => MEM_CHOICES,
           :default =>
@@ -48,136 +115,133 @@ module VMC
               MEM_DEFAULTS_FRAMEWORK[framework] ||
               "64M")
     }
-    flag(:instances) {
+    input(:instances, :type => :integer,
+          :desc => "Number of instances to run") {
       ask("Instances", :default => 1)
     }
-    flag(:framework) { |choices, default|
-      opts = {:choices => choices}
+    input(:framework, :from_given => find_by_name("framework"),
+          :desc => "Framework to use") { |choices, default, other|
+      choices = choices.sort_by(&:name)
+      choices << other if other
+
+      opts = {
+        :choices => choices,
+        :display => proc { |f|
+          if f == other
+            "other"
+          else
+            f.name
+          end
+        }
+      }
+
       opts[:default] = default if default
 
       ask("Framework", opts)
     }
-    flag(:runtime) { |choices|
-      ask("Runtime", :choices => choices)
+    input(:runtime, :desc => "Runtime to run it with",
+          :from_given => find_by_name("runtime")) { |choices|
+      ask("Runtime", :choices => choices, :display => proc(&:name))
     }
-    flag(:command) {
+    input(:command, :desc => "Startup command for standalone app") {
       ask("Startup command")
     }
-    flag(:start, :default => true)
-    flag(:restart, :default => true)
-    flag(:create_services, :type => :boolean) {
+    input :start, :type => :boolean, :default => true,
+      :desc => "Start app after pushing?"
+    input :restart, :type => :boolean, :default => true,
+      :desc => "Restart app after updating?"
+    input(:create_services, :type => :boolean,
+          :desc => "Interactively create services?") {
       ask "Create services for application?", :default => false
     }
-    flag(:bind_services, :type => :boolean) {
+    input(:bind_services, :type => :boolean,
+          :desc => "Interactively bind services?") {
       ask "Bind other services to application?", :default => false
     }
-    def push(name = nil)
-      path = File.expand_path(input(:path) || ".")
+    def push(input)
+      path = File.expand_path(input[:path])
 
-      name ||= input(:name)
+      name = input[:name]
+
+      if exists = client.app_by_name(name)
+        upload_app(exists, path)
+        invoke :restart, :app => exists if input[:restart]
+        return
+      end
+
+      app = client.app
+      app.name = name
+      app.space = client.current_space if client.current_space
+      app.total_instances = input[:instances]
 
       detector = Detector.new(client, path)
       frameworks = detector.all_frameworks
       detected, default = detector.frameworks
 
-      app = client.app(name)
-
-      if app.exists?
-        upload_app(app, path)
-        restart(app.name) if input(:restart)
-        return
-      end
-
-      app.total_instances = input(:instances)
-
       if detected.empty?
-        framework = input(:framework, frameworks.keys.sort, nil)
+        framework = input[:framework, frameworks, nil, false]
       else
-        framework = input(:framework, detected.keys.sort + ["other"], default)
-        if framework == "other"
-          forget(:framework)
-          framework = input(:framework, frameworks.keys.sort, nil)
+        detected_names = detected.collect(&:name).sort
+        framework = input[:framework, detected, default, true]
+
+        if framework == :other
+          input.forget(:framework)
+          framework = input[:framework, frameworks, nil, false]
         end
       end
 
-      framework_runtimes =
-        frameworks[framework]["runtimes"].collect { |k| k["name"] }
+      runtimes = v2? ? client.runtimes : framework.runtimes
+      runtime = input[:runtime, runtimes]
 
-      runtime = input(:runtime, framework_runtimes.sort)
+      fail "Invalid framework '#{input[:framework]}'" unless framework
+      fail "Invalid runtime '#{input[:runtime]}'" unless runtime
 
       app.framework = framework
       app.runtime = runtime
 
       if framework == "standalone"
-        app.command = input(:command)
+        app.command = input[:command]
 
-        if (url = input(:url, "none")) != "none"
+        if (url = input[:url, "none"]) != "none"
           app.urls = [url]
         else
           app.urls = []
         end
       else
-        domain = client.target.sub(/^https?:\/\/api\.(.+)\/?/, '\1')
-        app.urls = [input(:url, "#{name}.#{domain}")]
+        domain = client.target.sub(/^https?:\/\/[^\.]+\.(.+)\/?/, '\1')
+        app.urls = [input[:url, "#{name}.#{domain}"]]
       end
 
-      app.memory = megabytes(input(:memory, framework, runtime))
+      app.memory = megabytes(input[:memory, framework, runtime])
+
+      app = filter(:create_app, app)
+
+      with_progress("Creating #{c(app.name, :name)}") do
+        app.create!
+      end
 
       bindings = []
-      if input(:create_services) && !force?
-        services = client.system_services
 
+      if input[:create_services] && !force?
         while true
-          vendor = ask "What kind?", :choices => services.keys.sort
-          meta = services[vendor]
-
-          if meta[:versions].size == 1
-            version = meta[:versions].first
-          else
-            version = ask "Which version?",
-              :choices => meta[:versions].sort.reverse
-          end
-
-          random = sprintf("%x", rand(1000000))
-          service_name = ask "Service name?", :default => "#{vendor}-#{random}"
-
-          service = client.service(service_name)
-          service.type = meta[:type]
-          service.vendor = meta[:vendor]
-          service.version = version
-          service.tier = "free"
-
-          with_progress("Creating service #{c(service_name, :name)}") do
-            service.create!
-          end
-
-          bindings << service_name
-
+          invoke :create_service, :app => app
           break unless ask "Create another service?", :default => false
         end
       end
 
-      if input(:bind_services) && !force?
-        services = client.services.collect(&:name)
+      if input[:bind_services] && !force?
+        instances = client.service_instances
 
         while true
-          choices = services - bindings
-          break if choices.empty?
+          invoke :bind_service, :app => app
 
-          bindings << ask("Bind which service?", :choices => choices.sort)
+          break if (instances - app.services).empty?
 
-          unless bindings.size < services.size &&
-                  ask("Bind another service?", :default => false)
-            break
-          end
+          break unless ask("Bind another service?", :default => false)
         end
       end
 
-      app.services = bindings
-
-      with_progress("Creating #{c(name, :name)}") do
-        app.create!
-      end
+      app = filter(:push_app, app)
 
       begin
         upload_app(app, path)
@@ -186,28 +250,27 @@ module VMC
         raise
       end
 
-      start(name) if input(:start)
+      invoke :start, :app => app if input[:start]
     end
 
-    desc "start APPS...", "Start an application"
+
+    desc "Start an application"
     group :apps, :manage
-    flag :name
-    flag :debug_mode, :aliases => "-d"
-    def start(*names)
-      if name = passed_value(:name)
-        names = [name]
-      end
+    input :apps, :argument => :splat, :singular => :app,
+      :desc => "Applications to start",
+      :from_given => by_name("app")
+    input :debug_mode, :aliases => "-d",
+      :desc => "Debug mode to start in"
+    def start(input)
+      apps = input[:apps]
+      fail "No applications given." if apps.empty?
 
-      fail "No applications given." if names.empty?
+      spaced(apps) do |app|
+        app = filter(:start_app, app)
 
-      names.each do |name|
-        app = client.app(name)
+        switch_mode(app, input[:debug_mode])
 
-        fail "Unknown application." unless app.exists?
-
-        switch_mode(app, input(:debug_mode))
-
-        with_progress("Starting #{c(name, :name)}") do |s|
+        with_progress("Starting #{c(app.name, :name)}") do |s|
           if app.started?
             s.skip do
               err "Already started."
@@ -217,35 +280,30 @@ module VMC
           app.start!
         end
 
+        # TODO: reenable for v2
+        next if v2?
+
         check_application(app)
 
-        if app.debug_mode && !simple_output?
-          puts ""
-          instances(name)
+        if app.debug_mode && !quiet?
+          line
+          invoke :instances, :app => app
         end
       end
     end
 
-    desc "stop APPS...", "Stop an application"
+
+    desc "Stop an application"
     group :apps, :manage
-    flag :name
-    def stop(*names)
-      if name = passed_value(:name)
-        names = [name]
-      end
+    input :apps, :argument => :splat, :singular => :app,
+      :desc => "Applications to start",
+      :from_given => by_name("app")
+    def stop(input)
+      apps = input[:apps]
+      fail "No applications given." if apps.empty?
 
-      fail "No applications given." if names.empty?
-
-      names.each do |name|
-        with_progress("Stopping #{c(name, :name)}") do |s|
-          app = client.app(name)
-
-          unless app.exists?
-            s.fail do
-              err "Unknown application."
-            end
-          end
-
+      spaced(apps) do |app|
+        with_progress("Stopping #{c(app.name, :name)}") do |s|
           if app.stopped?
             s.skip do
               err "Application is not running."
@@ -257,122 +315,124 @@ module VMC
       end
     end
 
-    desc "restart APPS...", "Stop and start an application"
+
+    desc "Stop and start an application"
     group :apps, :manage
-    flag :name
-    flag :debug_mode, :aliases => "-d"
-    def restart(*names)
-      stop(*names)
-      start(*names)
+    input :apps, :argument => :splat, :singular => :app,
+      :desc => "Applications to start",
+      :from_given => by_name("app")
+    input :debug_mode, :aliases => "-d",
+      :desc => "Debug mode to start in"
+    def restart(input)
+      invoke :stop, :apps => input[:apps]
+      invoke :start, :apps => input[:apps],
+        :debug_mode => input[:debug_mode]
     end
 
-    desc "delete APPS...", "Delete an application"
+
+    desc "Delete an application"
     group :apps, :manage
-    flag :name
-    flag(:really) { |name, color|
+    input(:apps, :argument => :splat, :singular => :app,
+          :desc => "Applications to delete",
+          :from_given => by_name("app")) {
+      apps = client.apps
+      fail "No applications." if apps.empty?
+
+      [ask("Delete which application?", :choices => apps.sort_by(&:name),
+           :display => proc(&:name))]
+    }
+    input(:really, :type => :boolean, :forget => true) { |name, color|
       force? || ask("Really delete #{c(name, color)}?", :default => false)
     }
-    flag(:name) { |names|
-      ask("Delete which application?", :choices => names)
-    }
-    flag(:orphaned, :aliases => "-o", :type => :boolean,
-          :desc => "Delete orphaned instances")
-    flag(:all, :default => false)
-    def delete(*names)
-      if input(:all)
-        return unless input(:really, "ALL APPS", :bad)
-
-        apps = client.apps
-
-        orphaned = find_orphaned_services(apps)
-
-        apps.each do |a|
-          with_progress("Deleting #{c(a.name, :name)}") do
-            a.delete!
-          end
-        end
-
-        delete_orphaned_services(orphaned)
-
-        return
-      end
-
+    input :orphaned, :aliases => "-o", :type => :boolean,
+      :desc => "Delete orphaned instances"
+    input :all, :default => false,
+      :desc => "Delete all applications"
+    def delete(input)
       apps = client.apps
 
-      if names.empty?
-        fail "No applications." if apps.empty?
+      if input[:all]
+        return unless input[:really, "ALL APPS", :bad]
 
-        names = [input(:name, apps.collect(&:name).sort)]
+        to_delete = apps
+        others = []
+      else
+        to_delete = input[:apps]
+        others = apps - to_delete
       end
 
-      to_delete = names.collect { |n| apps.find { |a| a.name == n } }
-      orphaned = find_orphaned_services(to_delete)
+      orphaned = find_orphaned_services(to_delete, others)
 
-      to_delete.each do |app|
-        really = input(:really, app.name, :name)
-
-        forget(:really)
-
+      deleted = []
+      spaced(to_delete) do |app|
+        really = input[:all] || input[:really, app.name, :name]
         next unless really
+
+        deleted << app
 
         with_progress("Deleting #{c(app.name, :name)}") do
           app.delete!
         end
       end
 
-      delete_orphaned_services(orphaned)
+      delete_orphaned_services(orphaned, input[:orphaned])
+
+      to_delete
     end
 
-    desc "instances APPS...", "List an app's instances"
+
+    desc "List an app's instances"
     group :apps, :info, :hidden => true
-    flag :name
-    def instances(*names)
-      if name = passed_value(:name)
-        names = [name]
-      end
+    input :apps, :argument => :splat, :singular => :app,
+      :desc => "Applications to start",
+      :from_given => by_name("app")
+    def instances(input)
+      no_v2
 
-      fail "No applications given." if names.empty?
+      apps = input[:apps]
+      fail "No applications given." if apps.empty?
 
-      names.each do |name|
+      spaced(apps) do |app|
         instances =
-          with_progress("Getting instances for #{c(name, :name)}") do
-            client.app(name).instances
+          with_progress("Getting instances for #{c(app.name, :name)}") do
+            app.instances
           end
 
-        instances.each do |i|
-          if simple_output?
-            puts i.index
+        spaced(instances) do |i|
+          if quiet?
+            line i.index
           else
-            puts ""
+            line
             display_instance(i)
           end
         end
       end
     end
 
-    desc "scale APP", "Update the instances/memory limit for an application"
+
+    desc "Update the instances/memory limit for an application"
     group :apps, :info, :hidden => true
-    flag :name
-    flag(:instances, :type => :numeric) { |default|
+    input :app, :argument => true, :desc => "Application to update",
+      :from_given => by_name("app")
+    input(:instances, :type => :numeric,
+          :desc => "Number of instances to run") { |default|
       ask("Instances", :default => default)
     }
-    flag(:memory) { |default|
-      ask("Memory Limit",
-          :default => human_size(default * 1024 * 1024, 0),
-          :choices => MEM_CHOICES)
+    input(:memory, :desc => "Memory limit") { |default|
+      ask("Memory Limit", :choices => MEM_CHOICES,
+          :default => human_size(default * 1024 * 1024, 0))
     }
-    flag :restart, :default => true
-    def scale(name = nil)
-      name ||= input(:name)
+    input :restart, :type => :boolean, :default => true,
+      :desc => "Restart app after updating?"
+    def scale(input)
+      app = input[:app]
 
-      app = client.app(name)
-
-      instances = passed_value(:instances)
-      memory = passed_value(:memory)
+      instances = input.given(:instances)
+      memory = input.given(:memory)
 
       unless instances || memory
-        instances = input(:instances, app.total_instances)
-        memory = input(:memory, app.memory)
+        instances = input[:instances, app.total_instances]
+        memory = input[:memory, app.memory]
       end
 
       megs = megabytes(memory)
@@ -382,278 +442,377 @@ module VMC
 
       return unless memory_changed || instances_changed
 
-      with_progress("Scaling #{c(name, :name)}") do
+      with_progress("Scaling #{c(app.name, :name)}") do
         app.total_instances = instances.to_i if instances
         app.memory = megs if memory
         app.update!
       end
 
-      if memory_changed && app.started? && input(:restart)
-        with_progress("Restarting #{c(name, :name)}") do
-          app.restart!
-        end
+      if memory_changed && app.started? && input[:restart]
+        invoke :restart, :app => app
       end
     end
 
-    desc "logs APP", "Print out an app's logs"
-    group :apps, :info, :hidden => true
-    flag :name
-    flag(:instance, :type => :numeric, :default => 0)
-    flag(:all, :default => false)
-    def logs(name = nil)
-      name ||= input(:name)
 
-      app = client.app(name)
-      fail "Unknown application." unless app.exists?
+    desc "Print out an app's logs"
+    group :apps, :info, :hidden => true
+    input :app, :argument => true,
+      :desc => "Application to get the logs of",
+      :from_given => by_name("app")
+    input :instance, :type => :numeric, :default => 0,
+      :desc => "Instance of application to get the logs of"
+    input :all, :default => false,
+      :desc => "Get logs for every instance"
+    def logs(input)
+      no_v2
+
+      app = input[:app]
 
       instances =
-        if input(:all)
+        if input[:all]
           app.instances
         else
-          app.instances.select { |i| i.index == input(:instance) }
+          app.instances.select { |i| i.index == input[:instance] }
         end
 
       if instances.empty?
-        if input(:all)
+        if input[:all]
           fail "No instances found."
         else
-          fail "Instance #{name} \##{input(:instance)} not found."
+          fail "Instance #{app.name} \##{input[:instance]} not found."
         end
       end
 
-      instances.each do |i|
+      spaced(instances) do |i|
         logs =
           with_progress(
-            "Getting logs for " +
-              c(name, :name) + " " +
-              c("\##{i.index}", :instance)) do
+              "Getting logs for #{c(app.name, :name)}" +
+                c("\##{i.index}", :instance)) do
             i.files("logs")
           end
 
-        puts "" unless simple_output?
+        line unless quiet?
 
-        logs.each do |log|
+        spaced(logs) do |log|
           body =
             with_progress("Reading " + b(log.join("/"))) do
               i.file(*log)
             end
 
-          puts body
-          puts "" unless body.empty?
+          lines body
+          line unless body.empty?
         end
       end
     end
 
-    desc "file APP [PATH]", "Print out an app's file contents"
+
+    desc "Print out an app's file contents"
     group :apps, :info, :hidden => true
-    flag :name
-    def file(name = nil, path = "/")
-      name ||= input(:name)
+    input :app, :argument => true,
+      :desc => "Application to inspect the files of",
+      :from_given => by_name("app")
+    input :path, :argument => true, :default => "/",
+      :desc => "Path of file to read"
+    def file(input)
+      no_v2
+
+      app = input[:app]
 
       file =
         with_progress("Getting file contents") do
-          client.app(name).file(*path.split("/"))
+          app.file(*input[:path].split("/"))
         end
 
-      puts "" unless simple_output?
+      line unless quiet?
 
       print file
     end
 
-    desc "files APP [PATH]", "Examine an app's files"
+    desc "Examine an app's files"
     group :apps, :info, :hidden => true
-    flag :name
-    def files(name = nil, path = "/")
-      name ||= input(:name)
+    input :app, :argument => true,
+      :desc => "Application to inspect the files of",
+      :from_given => by_name("app")
+    input :path, :argument => true, :default => "/",
+      :desc => "Path of directory to list"
+    def files(input)
+      no_v2
+
+      app = input[:app]
 
       files =
         with_progress("Getting file listing") do
-          client.app(name).files(*path.split("/"))
+          app.files(*input[:path].split("/"))
         end
 
-      puts "" unless simple_output?
+      line unless quiet?
       files.each do |file|
-        puts file.join("/")
+        line file.join("/")
       end
     end
 
-    desc "health ...APPS", "Get application health"
+
+    desc "Get application health"
     group :apps, :info, :hidden => true
-    flag :name
-    def health(*names)
-      if name = passed_value(:name)
-        names = [name]
-      end
+    input :apps, :argument => :splat, :singular => :app,
+      :desc => "Applications to start",
+      :from_given => by_name("app")
+    def health(input)
+      apps = input[:apps]
+      fail "No applications given." if apps.empty?
 
-      apps =
-        with_progress("Getting application health") do
-          names.collect do |n|
-            [n, app_status(client.app(n))]
-          end
+      health =
+        with_progress("Getting health status") do
+          apps.collect { |a| [a, app_status(a)] }
         end
 
-      apps.each do |name, status|
-        unless simple_output?
-          puts ""
-          print "#{c(name, :name)}: "
-        end
+      line unless quiet?
 
+      spaced(health) do |app, status|
+        start_line "#{c(app.name, :name)}: " unless quiet?
         puts status
       end
     end
 
-    desc "stats APP", "Display application instance status"
+
+    desc "Display application instance status"
     group :apps, :info, :hidden => true
-    flag :name
-    def stats(name = nil)
-      name ||= input(:name)
+    input :app, :argument => true,
+      :desc => "Application to get the stats for",
+      :from_given => by_name("app")
+    def stats(input)
+      no_v2
+
+      app = input[:app]
 
       stats =
-        with_progress("Getting stats") do
-          client.app(name).stats
+        with_progress("Getting stats for #{c(app.name, :name)}") do
+          app.stats
         end
 
-      stats.sort_by { |k, _| k }.each do |idx, info|
-        puts ""
+      spaced(stats.sort_by(&:first)) do |idx, info|
+        line
 
-        if info["state"] == "DOWN"
-          puts "Instance #{c("\##{idx}", :instance)} is down."
+        if info[:state] == "DOWN"
+          line "Instance #{c("\##{idx}", :instance)} is down."
           next
         end
 
-        stats = info["stats"]
-        usage = stats["usage"]
-        puts "instance #{c("\##{idx}", :instance)}:"
-        print "  cpu: #{percentage(usage["cpu"])} of"
-        puts " #{b(stats["cores"])} cores"
-        puts "  memory: #{usage(usage["mem"] * 1024, stats["mem_quota"])}"
-        puts "  disk: #{usage(usage["disk"], stats["disk_quota"])}"
-      end
-    end
+        stats = info[:stats]
+        usage = stats[:usage]
+        line "instance #{c("\##{idx}", :instance)}:"
 
-    desc "update", "DEPRECATED", :hide => true
-    def update(*args)
-      fail "The 'update' command is no longer used; use 'push' instead."
-    end
-
-    class URL < Command
-      desc "map APP URL", "Add a URL mapping for an app"
-      group :apps, :info, :hidden => true
-      def map(name, url)
-        simple = url.sub(/^https?:\/\/(.*)\/?/i, '\1')
-
-        with_progress("Updating #{c(name, :name)}") do
-          app = client.app(name)
-          app.urls << simple
-          app.update!
-        end
-      end
-
-      desc "unmap APP URL", "Remove a URL mapping from an app"
-      group :apps, :info, :hidden => true
-      def unmap(name, url)
-        simple = url.sub(/^https?:\/\/(.*)\/?/i, '\1')
-
-        app = client.app(name)
-        fail "Unknown application." unless app.exists?
-
-        with_progress("Updating #{c(name, :name)}") do |s|
-          unless app.urls.delete(simple)
-            s.fail do
-              err "URL #{url} is not mapped to this application."
-              return
-            end
-          end
-
-          app.update!
+        indented do
+          line "cpu: #{percentage(usage[:cpu])} of #{b(stats[:cores])} cores"
+          line "memory: #{usage(usage[:mem] * 1024, stats[:mem_quota])}"
+          line "disk: #{usage(usage[:disk], stats[:disk_quota])}"
         end
       end
     end
 
-    desc "url SUBCOMMAND ...ARGS", "Manage application URL bindings"
-    subcommand "url", URL
 
-    class Env < Command
-      VALID_NAME = /^[a-zA-Za-z_][[:alnum:]_]*$/
+    desc "Add a URL mapping for an app"
+    group :apps, :info, :hidden => true
+    input :app, :argument => true,
+      :desc => "Application to add the URL to",
+      :from_given => by_name("app")
+    input :url, :argument => true,
+      :desc => "URL to route"
+    def map(input)
+      no_v2
 
-      desc "set APP [NAME] [VALUE]", "Set an environment variable"
-      group :apps, :info, :hidden => true
-      flag :restart, :default => true
-      def set(appname, name, value)
-        unless name =~ VALID_NAME
-          fail "Invalid variable name; must match #{VALID_NAME.inspect}"
-        end
+      app = input[:app]
 
-        app = client.app(appname)
-        fail "Unknown application." unless app.exists?
+      simple = input[:url].sub(/^https?:\/\/(.*)\/?/i, '\1')
 
-        with_progress("Updating #{c(app.name, :name)}") do
-          app.update!("env" =>
-                        app.env.reject { |v|
-                          v.start_with?("#{name}=")
-                        }.push("#{name}=#{value}"))
-        end
-
-        if app.started? && input(:restart)
-          with_progress("Restarting #{c(app.name, :name)}") do
-            app.restart!
-          end
-        end
-      end
-
-      desc "unset APP [NAME]", "Remove an environment variable"
-      group :apps, :info, :hidden => true
-      flag :restart, :default => true
-      def unset(appname, name)
-        app = client.app(appname)
-        fail "Unknown application." unless app.exists?
-
-        with_progress("Updating #{c(app.name, :name)}") do
-          app.update!("env" =>
-                        app.env.reject { |v|
-                          v.start_with?("#{name}=")
-                        })
-        end
-
-        if app.started? && input(:restart)
-          with_progress("Restarting #{c(app.ame, :name)}") do
-            app.restart!
-          end
-        end
-      end
-
-      desc "list APP", "Show all environment variables set for an app"
-      group :apps, :info, :hidden => true
-      def list(appname)
-        vars =
-          with_progress("Getting variables") do |s|
-            app = client.app(appname)
-
-            unless app.exists?
-              s.fail do
-                err "Unknown application."
-                return
-              end
-            end
-
-            app.env
-          end
-
-        puts "" unless simple_output?
-
-        vars.each do |pair|
-          name, val = pair.split("=", 2)
-          puts "#{c(name, :name)}: #{val}"
-        end
+      with_progress("Updating #{c(app.name, :name)}") do
+        app.urls << simple
+        app.update!
       end
     end
 
-    desc "env SUBCOMMAND ...ARGS", "Manage application environment variables"
-    subcommand "env", Env
+
+    desc "Remove a URL mapping from an app"
+    group :apps, :info, :hidden => true
+    input :app, :argument => true,
+      :desc => "Application to remove the URL from",
+      :from_given => by_name("app")
+    input(:url, :argument => true, :desc => "URL to unmap") { |choices|
+      ask("Which URL?", :choices => choices)
+    }
+    def unmap(input)
+      no_v2
+
+      app = input[:app]
+      url = input[:url, app.urls]
+
+      simple = url.sub(/^https?:\/\/(.*)\/?/i, '\1')
+
+      with_progress("Updating #{c(app.name, :name)}") do |s|
+        unless app.urls.delete(simple)
+          s.fail do
+            err "URL #{url} is not mapped to this application."
+            return
+          end
+        end
+
+        app.update!
+      end
+    end
+
+
+    desc "Show all environment variables set for an app"
+    group :apps, :info, :hidden => true
+    input :app, :argument => true,
+      :desc => "Application to inspect the environment of",
+      :from_given => by_name("app")
+    def env(input)
+      app = input[:app]
+
+      vars =
+        with_progress("Getting env for #{c(app.name, :name)}") do |s|
+          app.env
+        end
+
+      line unless quiet?
+
+      vars.each do |name, val|
+        line "#{c(name, :name)}: #{val}"
+      end
+    end
+
+
+    VALID_ENV_VAR = /^[a-zA-Za-z_][[:alnum:]_]*$/
+
+    desc "Set an environment variable"
+    group :apps, :info, :hidden => true
+    input :app, :argument => true,
+      :desc => "Application to set the variable for",
+      :from_given => by_name("app")
+    input :name, :argument => true,
+      :desc => "Environment variable name"
+    input :value, :argument => :optional,
+      :desc => "Environment variable value"
+    input :restart, :type => :boolean, :default => true,
+      :desc => "Restart app after updating?"
+    def set_env(input)
+      app = input[:app]
+      name = input[:name]
+
+      if value = input[:value]
+        name = input[:name]
+      elsif name["="]
+        name, value = name.split("=")
+      end
+
+      unless name =~ VALID_ENV_VAR
+        fail "Invalid variable name; must match #{VALID_ENV_VAR.inspect}"
+      end
+
+      with_progress("Updating #{c(app.name, :name)}") do
+        app.env[name] = value
+        app.update!
+      end
+
+      if app.started? && input[:restart]
+        invoke :restart, :app => app
+      end
+    end
+
+    alias_command :set_env, :env_set
+    alias_command :set_env, :add_env
+    alias_command :set_env, :env_add
+
+
+    desc "Remove an environment variable"
+    group :apps, :info, :hidden => true
+    input :app, :argument => true,
+      :desc => "Application to set the variable for",
+      :from_given => by_name("app")
+    input :name, :argument => true,
+      :desc => "Environment variable name"
+    input :restart, :type => :boolean, :default => true,
+      :desc => "Restart app after updating?"
+    def delete_env(input)
+      app = input[:app]
+      name = input[:name]
+
+      with_progress("Updating #{c(app.name, :name)}") do
+        app.env.delete(name)
+        app.update!
+      end
+
+      if app.started? && input[:restart]
+        invoke :restart, :app => app
+      end
+    end
+
+    alias_command :delete_env, :env_del
+
+
+    desc "DEPRECATED. Use 'push' instead."
+    def update(input)
+      fail "The 'update' command is no longer needed; use 'push' instead."
+    end
 
     private
 
+    def app_matches(a, options)
+      if name = options[:name]
+        return false if a.name !~ /#{name}/
+      end
+
+      if runtime = options[:runtime]
+        return false if a.runtime.name !~ /#{runtime}/
+      end
+
+      if framework = options[:framework]
+        return false if a.framework.name !~ /#{framework}/
+      end
+
+      if url = options[:url]
+        return false if a.urls.none? { |u| u =~ /#{url}/ }
+      end
+
+      true
+    end
+
+    IS_UTF8 = !!(ENV["LC_ALL"] || ENV["LC_CTYPE"] || ENV["LANG"])["UTF-8"]
+
+    def display_app(a)
+      if quiet?
+        line a.name
+        return
+      end
+
+      status = app_status(a)
+
+      line "#{c(a.name, :name)}: #{status}"
+
+      indented do
+        line "platform: #{b(a.framework.name)} on #{b(a.runtime.name)}"
+
+        start_line "usage: #{b(human_size(a.memory * 1024 * 1024, 0))}"
+        print " #{d(IS_UTF8 ? "\xc3\x97" : "x")} #{b(a.total_instances)}"
+        print " instance#{a.total_instances == 1 ? "" : "s"}"
+
+        line
+
+        unless a.urls.empty?
+          line "urls: #{a.urls.collect { |u| b(u) }.join(", ")}"
+        end
+
+        unless a.services.empty?
+          line "services: #{a.services.collect { |s| b(s.name) }.join(", ")}"
+        end
+      end
+    end
+
     def upload_app(app, path)
+      if v2?
+        fail "V2 API currently does not support uploading or starting apps."
+      end
+
       with_progress("Uploading #{c(app.name, :name)}") do
         app.upload(path)
       end
@@ -676,8 +835,9 @@ module VMC
       end
 
       with_progress("Switching mode to #{c(mode, :name)}") do |s|
-        runtimes = client.system_runtimes
-        modes = runtimes[app.runtime]["debug_modes"] || []
+        runtime = client.runtimes.find { |r| r.name == app.runtime.name }
+        modes = runtime.debug_modes
+
         if modes.include?(mode)
           app.debug_mode = mode
           app.stop! if app.started?
@@ -693,8 +853,8 @@ module VMC
       with_progress("Checking #{c(app.name, :name)}") do |s|
         if app.debug_mode == "suspend"
           s.skip do
-            puts "Application is in suspended debugging mode."
-            puts "It will wait for you to attach to it before starting."
+            line "Application is in suspended debugging mode."
+            line "It will wait for you to attach to it before starting."
           end
         end
 
@@ -741,47 +901,93 @@ module VMC
     end
 
     def display_instance(i)
-      print "instance #{c("\##{i.index}", :instance)}: "
+      start_print "instance #{c("\##{i.index}", :instance)}: "
       puts "#{b(c(i.state.downcase, state_color(i.state)))} "
 
-      puts "  started: #{c(i.since.strftime("%F %r"), :cyan)}"
+      indented do
+        line "started: #{c(i.since.strftime("%F %r"), :cyan)}"
 
-      if d = i.debugger
-        puts "  debugger: port #{b(d[:port])} at #{b(d[:ip])}"
-      end
+        if d = i.debugger
+          line "debugger: port #{b(d[:port])} at #{b(d[:ip])}"
+        end
 
-      if c = i.console
-        puts "  console: port #{b(c[:port])} at #{b(c[:ip])}"
+        if c = i.console
+          line "console: port #{b(c[:port])} at #{b(c[:ip])}"
+        end
       end
     end
 
-    def find_orphaned_services(apps)
-      orphaned = []
+    def find_orphaned_services(apps, others = [])
+      orphaned = Set.new
 
       apps.each do |a|
-        a.services.each do |s|
-          if apps.none? { |x| x != a && x.services.include?(s) }
-            orphaned << s
+        a.services.each do |i|
+          if others.none? { |x| x.binds?(i) }
+            orphaned << i
           end
         end
       end
 
-      orphaned
+      orphaned.each(&:invalidate!)
     end
 
-    def delete_orphaned_services(names)
-      return if names.empty?
+    def delete_orphaned_services(instances, orphaned)
+      return if instances.empty?
 
-      puts "" unless simple_output?
+      line unless quiet?
 
-      names.select { |s|
-        input(:orphaned) ||
-          ask("Delete orphaned service #{c(s, :name)}?", :default => false)
-      }.each do |s|
-        with_progress("Deleting service #{c(s, :name)}") do
-          client.service(s).delete!
+      instances.select { |i|
+        orphaned ||
+          ask("Delete orphaned service instance #{c(i.name, :name)}?",
+              :default => false)
+      }.each do |instance|
+        # TODO: splat
+        invoke :delete_service, :instance => instance, :really => true
+      end
+    end
+
+    def usage(used, limit)
+      "#{b(human_size(used))} of #{b(human_size(limit, 0))}"
+    end
+
+    def percentage(num, low = 50, mid = 70)
+      color =
+        if num <= low
+          :good
+        elsif num <= mid
+          :warning
+        else
+          :bad
+        end
+
+      c(format("%.1f\%", num), color)
+    end
+
+    def megabytes(str)
+      if str =~ /T$/i
+        str.to_i * 1024 * 1024
+      elsif str =~ /G$/i
+        str.to_i * 1024
+      elsif str =~ /M$/i
+        str.to_i
+      elsif str =~ /K$/i
+        str.to_i / 1024
+      else # assume megabytes
+        str.to_i
+      end
+    end
+
+    def human_size(num, precision = 1)
+      sizes = ["G", "M", "K"]
+      sizes.each.with_index do |suf, i|
+        pow = sizes.size - i
+        unit = 1024 ** pow
+        if num >= unit
+          return format("%.#{precision}f%s", num / unit, suf)
         end
       end
+
+      format("%.#{precision}fB", num)
     end
   end
 end
