@@ -75,6 +75,16 @@ describe 'VMC::Cli::Framework' do
     app = spec_asset('tests/sinatra/hello_vcap')
     framework(app).to_s.should =~ /Sinatra/
   end
+  
+  it 'should be able to detect a modular Sinatra app' do
+    app = spec_asset('tests/sinatra/app_sinatra_modular')
+    framework(app).to_s.should =~ /Sinatra/
+  end
+  
+  it 'should be able to detect a modular Sinatra app' do
+    app = spec_asset('tests/sinatra/hello_vcap')
+    framework(app).to_s.should =~ /Sinatra/
+  end
 
   it 'should be able to detect a Rack app' do
     app = spec_asset('tests/rack/app_rack_service')
