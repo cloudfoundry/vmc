@@ -127,6 +127,7 @@ module VMC
 
       msg = e.class.name
       msg << ": #{e}" unless e.to_s.empty?
+      msg << "\nFor more information, see #{File.expand_path(VMC::CRASH_FILE)}"
       err msg
     end
 
