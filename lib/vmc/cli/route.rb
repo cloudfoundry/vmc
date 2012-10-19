@@ -20,7 +20,7 @@ module VMC
 
       table(
         %w{host domain},
-        routes.sort_by { |r| "#{r.domain.name} #{r.host}" }.collect { |r|
+        routes.sort_by(&:name).collect { |r|
           [ c(r.host, :name),
             r.domain.name
           ]
