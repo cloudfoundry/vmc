@@ -83,14 +83,20 @@ module VMC
         if runtimes.empty? && !quiet?
           line "#{d("none")}"
         elsif input[:quiet]
-          runtimes.each do |r|
+          sorted_runtimes(runtimes).each do |r|
             line r.name
           end
         else
+          status_colors = {"current" => :good, "next" => :name, "deprecated" => :bad}
           table(
-            %w{runtime description},
-            runtimes.sort_by(&:name).collect { |r|
-              [c(r.name, :name), r.description]
+            %w{runtime version info},
+            sorted_runtimes(runtimes).collect { |r|
+              if r.status
+                info = r.status[:name] == "deprecated" ? "End of Life: #{r.status[:eol_date]}" : nil
+                [c(r.name,status_colors[r.status[:name]]), r.version, info]
+              else
+                [c(r.name,:name), r.version, nil]
+              end
             })
         end
       end
@@ -416,6 +422,35 @@ module VMC
         with_progress("Switching to space #{c(space.name, :name)}") do
           info[:space] = space.guid
         end
+      end
+    end
+
+    def sorted_runtimes(runtimes)
+      # Sort by name if V2 or other server that doesn't yet have category, status, series
+      if v2? || (runtimes[0] && (runtimes[0].category.nil? || runtimes[0].status.nil? ||
+        runtimes[0].series.nil?))
+        runtimes.sort_by(&:name)
+      else
+        # Sort by category (i.e java, ruby, node, etc)
+        runtimes_by_category = runtimes.group_by{|runtime| runtime.category}
+        # Sort by status (Current, Next, Deprecated)
+        sorted_runtimes = []
+        runtimes_by_category.sort.map do |category, runtimes|
+          runtimes_by_status = {}
+          runtimes.each do |runtime|
+            runtimes_by_status[runtime.status[:name]] ||= []
+            runtimes_by_status[runtime.status[:name]] << runtime
+          end
+          %w(current next deprecated).each do |status|
+            # Sort by series descending (ruby19, ruby18, etc)
+            if runtimes_by_status[status]
+              sorted_runtimes = sorted_runtimes + runtimes_by_status[status].sort {|a,b|
+                b.series <=> a.series
+              }.collect {|runtime| runtime}
+            end
+          end
+        end
+        sorted_runtimes
       end
     end
   end
