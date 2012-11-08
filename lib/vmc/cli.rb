@@ -12,6 +12,7 @@ require "cfoundry"
 require "vmc/constants"
 require "vmc/errors"
 require "vmc/spacing"
+require "vmc/runtimes"
 
 require "vmc/cli/help"
 require "vmc/cli/interactive"
@@ -25,6 +26,7 @@ module VMC
     include VMC::Spacing
     include Mothership::Pretty
     include Mothership::Progress
+    include VMC::Runtimes
 
     option :help, :alias => "-h", :type => :boolean,
       :desc => "Show command usage & instructions"

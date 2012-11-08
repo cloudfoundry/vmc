@@ -122,11 +122,11 @@ module VMC
     }
     input(:framework, :from_given => find_by_name("framework"),
           :desc => "Framework to use") { |all, choices, default, other|
-      ask_with_other("Framework", all, choices, default, other)
+      ask_with_other("Framework", all.sort_by(&:name), choices.sort_by(&:name), default, other)
     }
     input(:runtime, :from_given => find_by_name("runtime"),
           :desc => "Runtime to use") { |all, choices, default, other|
-      ask_with_other("Runtime", all, choices, default, other)
+      ask_with_other("Runtime", sorted_runtimes(all), sorted_runtimes(choices), default, other)
     }
     input(:command, :desc => "Startup command for standalone app") {
       ask("Startup command")
@@ -1185,7 +1185,6 @@ module VMC
     end
 
     def ask_with_other(message, all, choices, default, other)
-      choices = choices.sort_by(&:name)
       choices << other if other
 
       opts = {
@@ -1194,7 +1193,7 @@ module VMC
           if other && x == other
             "other"
           else
-            x.name
+            display_name(x)
           end
         }
       }
@@ -1207,9 +1206,23 @@ module VMC
         opts[:choices] = all
         res = ask(message, opts)
       end
-
       res
     end
+
+    def display_name(choice)
+      unless choice.class.name =~ /Runtime/
+        return choice.name
+      end
+      display_name = choice.name
+      display_name = "#{display_name} (#{info_for(choice)})" if info_for(choice)
+      status = runtime_status_color(choice)
+      if status != :name
+        c(display_name, status)
+      else
+        display_name
+      end
+    end
+
     def usage(used, limit)
       "#{b(human_size(used))} of #{b(human_size(limit, 0))}"
     end
