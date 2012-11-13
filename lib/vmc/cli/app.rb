@@ -1039,6 +1039,9 @@ module VMC
         runtime = client.runtimes.find { |r| r.name == app.runtime.name }
         modes = runtime.debug_modes
 
+        unless modes
+          fail "Runtime #{runtime.name} has no available debug modes"
+        end
         if modes.include?(mode)
           app.debug_mode = mode
           app.stop! if app.started?
