@@ -21,11 +21,17 @@ module VMC
 
       enabled = Set.new(matching.collect(&:name))
 
-      Gem.loaded_specs["vmc"].dependencies.each do |dep|
-        if dep.name =~ /vmc-plugin/ && dep.type == :runtime
-          require "#{dep.name}/plugin"
-          enabled.delete dep.name
+      # skip plugin loading if vmc being run from source
+      # rather than from RubyGems executable
+      if Gem.loaded_specs["vmc"]
+        Gem.loaded_specs["vmc"].dependencies.each do |dep|
+          if dep.name =~ /vmc-plugin/ && dep.type == :runtime
+            require "#{dep.name}/plugin"
+            enabled.delete dep.name
+          end
         end
+      else
+        puts "Plugin loading unavailable if not running vmc from rubygems"
       end
 
       # allow explicit enabling/disabling of gems via config
