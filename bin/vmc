@@ -3,6 +3,7 @@
 
 require "rubygems"
 
+$:.unshift(File.expand_path("../../lib", __FILE__))
 require "vmc"
 require "vmc/plugin"
 
