@@ -4,9 +4,7 @@
 # 4. bump vmc-ng version
 # 5. bump cfoundry dep in vmc
 # 6. gerrit-push vmc
-# 7. update vmc-ng in vmc-glue
-# 8. gerrit-push vmc-glue
-# 9. release vmc-glue
+# 7. release vmc
 
 require "rubygems"
 require "pathname"
@@ -31,8 +29,6 @@ VMC_VER = "#{VMC_DIR}/lib/vmc/version.rb"
 CFOUNDRY_DIR = "#{root}/cfoundry"
 CFOUNDRY_VER = "#{CFOUNDRY_DIR}/lib/cfoundry/version.rb"
 
-GLUE_DIR = "#{root}/glue"
-
 require CFOUNDRY_VER
 require VMC_VER
 
@@ -47,9 +43,6 @@ class DailyBumper < Mothership
 
   option(:vmc, :type => :boolean, :default => true,
          :desc => "Bump VMC?")
-
-  option(:glue, :type => :boolean, :default => true,
-         :desc => "Bump glue gem?")
 
   option(:cfoundry_version, :desc => "New CFoundry version") {
     ask "Bumping CFoundry from #{CFoundry::VERSION}",
@@ -95,14 +88,6 @@ class DailyBumper < Mothership
       commit(VMC_DIR, new_vmc_ver)
       gerrit_push(VMC_DIR, "ng")
     end
-
-    if input[:glue]
-      vmc_head = current_head(VMC_DIR)
-      update_submodule(GLUE_DIR, "vmc-ng", new_vmc_ver, vmc_head, "ng")
-      commit(GLUE_DIR, new_vmc_ver)
-      gerrit_push(GLUE_DIR)
-      release(GLUE_DIR, "vmc", new_vmc_ver)
-    end
   rescue Interrupt
     puts ""
     rollback!
@@ -135,30 +120,6 @@ class DailyBumper < Mothership
         end
       end
     }
-  end
-
-  def current_head(dir)
-    ref = File.read("#{dir}/.git/HEAD").chomp.sub(/^ref:\s+/, "")
-    File.read("#{dir}/.git/#{ref}").chomp
-  end
-
-  def update_submodule(dir, sub, ver, target_head, branch = "master")
-    return unless ask "Update #{c(sub, :name)} to #{ver}?", :default => true
-
-    before = nil
-    chdir("#{dir}/#{sub}") do
-      before = current_head(".")
-      until current_head(".") == target_head
-        sleep 1
-        sh "git pull origin #{branch}"
-      end
-    end
-
-    rollback(:update_submodule) do
-      chdir("#{dir}/#{sub}") do
-        system "git reset #{before} > /dev/null"
-      end
-    end
   end
 
   def bump_dep(dir, name, dep, ver)
