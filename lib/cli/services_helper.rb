@@ -46,10 +46,10 @@ module VMC::Cli
       display services_table
     end
 
-    def create_service_banner(service, name, display_name=false)
+    def create_service_banner(service, name, display_name=false, plan=nil)
       sn = " [#{name}]" if display_name
       display "Creating Service#{sn}: ", false
-      client.create_service(service, name)
+      client.create_service(service, name, plan)
       display 'OK'.green
     end
 

@@ -19,7 +19,7 @@ module VMC::Cli::Command
       display_provisioned_services(ps)
     end
 
-    def create_service(service=nil, name=nil, appname=nil)
+    def create_service(service=nil, name=nil, appname=nil, plan=nil)
       unless no_prompt || service
         services = client.services_info
         err 'No services available to provision' if services.empty?
@@ -32,13 +32,26 @@ module VMC::Cli::Command
               }.flatten
           }
         )
+
+        plans = service_plans(service, services)
+        if plans.size > 1
+          plan = ask(
+            "Which plan would you like to select?",
+            { :indexed => true,
+              :choices => plans
+            }
+          )
+        else
+          plan = plans[0]
+        end
       end
       name = @options[:name] unless name
       unless name
         name = random_service_name(service)
         picked_name = true
       end
-      create_service_banner(service, name, picked_name)
+      plan ||= @options[:plan] || "free"
+      create_service_banner(service, name, picked_name, plan)
       appname = @options[:bind] unless appname
       bind_service_banner(name, appname) if appname
     end

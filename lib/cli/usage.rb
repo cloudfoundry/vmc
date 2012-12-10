@@ -73,6 +73,7 @@ Currently available vmc commands are:
     create-service <service> [--name,--bind]     Create a provisioned service
     create-service <service> <name>              Create a provisioned service and assign it <name>
     create-service <service> <name> <app>        Create a provisioned service and assign it <name>, and bind to <app>
+    create-service <service> <name> <app> <plan> Create a provisioned service on specified plan and assign it <name>, and bind to <app>
     delete-service [servicename]                 Delete a provisioned service
     bind-service <servicename> <appname>         Bind a service to an application
     unbind-service <servicename> <appname>       Unbind service from the application
