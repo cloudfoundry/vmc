@@ -12,14 +12,18 @@ module VMC::Cli
       services.each do |service_type, value|
         value.each do |vendor, version|
           version.each do |version_str, service|
-            displayed_services << [ vendor, version_str, service[:description] ]
+            default_plan = service[:default_plan]? service[:default_plan]: ""
+            plans_str = ""
+            plans_str = service[:tiers].keys.join(',') if service[:tiers]
+            plans_str.sub!(/#{default_plan}/, "#{default_plan}(default)") unless default_plan.empty?
+            displayed_services << [ vendor, version_str, plans_str, service[:description] ]
           end
         end
       end
       displayed_services.sort! { |a, b| a.first.to_s <=> b.first.to_s}
 
       services_table = table do |t|
-        t.headings = 'Service', 'Version', 'Description'
+        t.headings = 'Service', 'Version', 'Plans', 'Description'
         displayed_services.each { |s| t << s }
       end
       display services_table
@@ -34,9 +38,9 @@ module VMC::Cli
     def display_provisioned_services_table(services)
       return unless services && !services.empty?
       services_table = table do |t|
-        t.headings = 'Name', 'Service'
+        t.headings = 'Name', 'Service', 'Plan'
         services.each do |service|
-          t << [ service[:name], service[:vendor] ]
+          t << [ service[:name], service[:vendor], service[:tier] ]
         end
       end
       display services_table
@@ -78,6 +82,19 @@ module VMC::Cli
       app = client.app_info(appname)
       cmd = VMC::Cli::Command::Apps.new(@options)
       cmd.restart(appname) if app[:state] == 'STARTED'
+    end
+
+    def service_plans(service, services_info=nil)
+      services ||= client.services_info
+      services.values.collect { |type|
+        type.select {|vendor, version| vendor.to_s == service}.values.collect { |ver|
+          ver.values.collect { |srv|
+            srv.select { |key, value| key == :tiers}.values.collect{ |plan|
+              plan.keys.collect(&:to_s)
+            }
+          }
+        }
+      }.flatten
     end
 
   end
