@@ -224,6 +224,17 @@ describe 'VMC::Client' do
     client.create_service('redis', 'foo')
   end
 
+  it 'should provision a service with plan specification' do
+    info_path = "#{@local_target}/#{VMC::INFO_PATH}"
+    stub_request(:get, info_path).to_return(File.new(spec_asset('info_authenticated.txt')))
+    global_services_path = "#{@local_target}/#{VMC::Client.path(VMC::GLOBAL_SERVICES_PATH)}"
+    stub_request(:get, global_services_path).to_return(File.new(spec_asset('global_service_listings_with_plan.txt')))
+    services_path = "#{@local_target}/#{VMC::SERVICES_PATH}"
+    stub_request(:post, services_path).to_return(File.new(spec_asset('good_create_service.txt')))
+    client = VMC::Client.new(@local_target, @auth_token)
+    client.create_service('redis', 'foo', 'charge')
+  end
+
   it 'should complain if we try to provision a service that already exists with same name' do
     info_path = "#{@local_target}/#{VMC::INFO_PATH}"
     stub_request(:get, info_path).to_return(File.new(spec_asset('info_authenticated.txt')))
@@ -244,6 +255,17 @@ describe 'VMC::Client' do
     stub_request(:post, services_path).to_return(File.new(spec_asset('service_not_found.txt')))
     client = VMC::Client.new(@local_target, @auth_token)
     expect { client.create_service('redis', 'foo') }.to raise_error(VMC::Client::NotFound)
+  end
+
+  it 'should complain if we try to provision a service with a plan that does not exist' do
+    info_path = "#{@local_target}/#{VMC::INFO_PATH}"
+    stub_request(:get, info_path).to_return(File.new(spec_asset('info_authenticated.txt')))
+    global_services_path = "#{@local_target}/#{VMC::Client.path(VMC::GLOBAL_SERVICES_PATH)}"
+    stub_request(:get, global_services_path).to_return(File.new(spec_asset('global_service_listings_with_plan.txt')))
+    services_path = "#{@local_target}/#{VMC::SERVICES_PATH}"
+    stub_request(:post, services_path).to_return(File.new(spec_asset('plan_not_found.txt')))
+    client = VMC::Client.new(@local_target, @auth_token)
+    expect { client.create_service('redis', 'foo', 'invalidplan') }.to raise_error(VMC::Client::TargetError)
   end
 
   it 'should allow us to delete a provisioned service' do

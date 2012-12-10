@@ -26,10 +26,11 @@ describe 'VMC::Cli::Runner' do
   end
 
   it 'should parse name and bind args correctly' do
-    args = "--name foo --bind bar"
+    args = "--name foo --bind bar --plan free"
     cli = VMC::Cli::Runner.new(args.split).parse_options!
     cli.options[:name].should == 'foo'
     cli.options[:bind].should == 'bar'
+    cli.options[:plan].should == 'free'
   end
 
   it 'should parse instances and instance into a number and string' do
