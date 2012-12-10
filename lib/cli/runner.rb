@@ -339,7 +339,7 @@ class VMC::Cli::Runner
       set_cmd(:services, :create_service, 1) if @args.size == 1
       set_cmd(:services, :create_service, 2) if @args.size == 2
       set_cmd(:services, :create_service, 3) if @args.size == 3
-      set_cmd(:services, :create_service, 4) if @args.size == 3
+      set_cmd(:services, :create_service, 4) if @args.size == 4
 
     when 'delete-service', 'delete_service'
       usage('vmc delete-service <service>')
