@@ -1026,7 +1026,7 @@ module VMC::Cli::Command
       if @app_info && services = @app_info["services"]
         services.each do |name, info|
           unless existing.include? name
-            create_service_banner(info["type"], name, true)
+            create_service_banner(info["type"], name, true, info["plan"])
           end
 
           bind_service_banner(name, appname)

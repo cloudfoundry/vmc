@@ -259,7 +259,26 @@ module VMC::Cli::ManifestHelper
     default_name = random_service_name(vendor)
     name = ask "Specify the name of the service", :default => default_name
 
+    configure_plan(vendor, name)
     set vendor, "services", name, "type"
+  end
+
+  def configure_plan(service, name)
+    plans = service_plans(service)
+
+    case plans.size
+    when 0
+      plan = nil
+    when 1
+      plan = plans[0]
+    else
+      plan = ask(
+        "Which plan?",
+        :indexed => true,
+        :choices => plans
+      )
+    end
+    set(plan, "services", name, "plan") if plan
   end
 
   private
