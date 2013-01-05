@@ -44,7 +44,8 @@ describe VMC::App::Create do
         :plan => "p100",
         :framework => framework,
         :runtime => runtime,
-        :memory => "1G"
+        :memory => "1G",
+        :command => "ruby main.rb"
       }
     end
 
@@ -54,7 +55,7 @@ describe VMC::App::Create do
       its([:space]) { should eq client.current_space }
       its([:production]) { should eq true }
       its([:framework]) { should eq framework }
-      its([:command]) { should eq nil }
+      its([:command]) { should eq "ruby main.rb" }
       its([:runtime]) { should eq runtime }
       its([:memory]) { should eq 1024 }
     end
@@ -81,10 +82,33 @@ describe VMC::App::Create do
         subject
       end
 
-      it 'should ask for the command if the framework is standalone' do
-        inputs[:framework] = standalone
-        mock_ask("Startup command") { "ruby main.rb" }
-        subject
+      context 'when the command is not given' do
+        before do
+          inputs.delete(:command)
+        end
+
+        it 'should ask if there is a custom start command' do
+          mock_ask("Use custom startup command?", :default => false) { false }
+          subject
+        end
+
+        context 'when the user answers "yes" to the custom start command' do
+          before { stub_ask("Use custom startup command?", :default => false) { true } }
+
+          it 'should ask for the startup command' do
+            mock_ask("Startup command") { 'ruby main.rb' }
+            subject
+          end
+        end
+
+        context 'when the user answers "no" to the custom start command' do
+          before { stub_ask("Use custom startup command?", :default => false) { false } }
+
+          it 'should not ask for the startup command' do
+            dont_allow_ask("Startup command")
+            subject
+          end
+        end
       end
 
       it 'should ask for the runtime' do
