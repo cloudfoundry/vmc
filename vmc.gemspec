@@ -12,7 +12,7 @@ Gem::Specification.new do |s|
   s.version     = VMC::VERSION.dup
   s.authors     = ["Alex Suraci"]
   s.email       = %w(asuraci@vmware.com)
-  s.homepage    = "http://cloudfoundry.com/"
+  s.homepage    = "http://github.com/cloudfoundry/vmc"
   s.summary     = %q{
     Friendly command-line interface for Cloud Foundry.
   }
