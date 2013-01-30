@@ -14,7 +14,7 @@ You can use this ng/nextgen version of VMC with the following public hosts of Cl
 
 * <a href="http://CloudFoundry.com">CloudFoundry.com</a>
 
-Please submit a gerrit patch to update this list if your company is running cloud_controller_ng for its customers.
+Please submit a github pull request to update this list if your company is running cloud_controller_ng for its customers.
 
 ## Additional articles about VMC v2
 
@@ -163,7 +163,5 @@ Questions about CloudFoundry.com can be directed to: [http://support.cloudfoundr
 To file a bug against Cloud Foundry Open Source and its components, sign up and use our bug tracking system: [http://cloudfoundry.atlassian.net](http://cloudfoundry.atlassian.net)
 
 ## OSS Contributions
-
-The Cloud Foundry team uses Gerrit, a code review tool that originated in the Android Open Source Project. We also use GitHub as an official mirror, though all pull requests are accepted via Gerrit.
 
 Follow our [Workflow process](https://github.com/cloudfoundry/oss-docs/blob/master/workflow.md "Workflow Process") to make a contribution to any of our open source repositories.
