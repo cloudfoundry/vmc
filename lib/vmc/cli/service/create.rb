@@ -69,7 +69,7 @@ module VMC::Service
         service.type = offering.type
         service.vendor = offering.label
         service.version = offering.version
-        service.tier = "free"
+        service.tier = v1_service_tier(offering)
       end
 
       with_progress("Creating service #{c(service.name, :name)}") do
@@ -102,10 +102,30 @@ module VMC::Service
       ask "Name?", :default => "#{offering.label}-#{random}"
     end
 
-    def ask_plan(plans)
-      ask "Which plan?", :choices => plans.sort_by(&:name),
-        :display => proc { |p| "#{p.name}: #{p.description}" },
-        :complete => proc(&:name)
+    def ask_plan(plans, default_plan = nil)
+      ask "Which plan?",
+        :choices => plans.sort_by(&:name),
+        :display => proc { |p| p.name + (": #{p.description}" rescue "") },
+        :complete => proc(&:name),
+        :default => default_plan
     end
+
+    class PseudoV2Plan
+      attr_accessor :name
+      def initialize(name)
+        @name = name
+      end
+    end
+
+    def v1_service_tier(offering)
+      plans = offering.plans
+      raise "Service has no plans" if plans.empty?
+      return plans[0] if plans.length == 1
+      plans = plans.map { |p| PseudoV2Plan.new(p) }
+      default_plan = offering.default_plan
+      default_plan = PseudoV2Plan.new(default_plan) if default_plan
+      return ask_plan(plans, default_plan).name
+    end
+
   end
 end
