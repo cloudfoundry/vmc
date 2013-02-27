@@ -389,7 +389,7 @@ module VMC
     end
 
     def client(target = client_target)
-      return @@client if defined?(@@client) && @@client
+      return @@client if defined?(@@client) && @@client && target==client_target
       return unless target
 
       info = target_info(target)
