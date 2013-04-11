@@ -415,23 +415,8 @@ describe VMC::CLI do
       end
     end
 
-    context "with a v1 cloud controller" do
-      before do
-        stub(context).target_info { { :version => 1} }
-      end
 
-      it "connects using the v1 api" do
-        expect(context.client).to be_a(CFoundry::V1::Client)
-      end
-
-      context "with a proxy user" do
-        before { stub(context).input { {:proxy => 'foo@example.com'} } }
-
-        it "uses the provided client proxy user" do
-          expect(context.client.proxy).to eq('foo@example.com')
-        end
-      end
-
+    shared_examples_for 'a client' do
       context "when ENV['http_proxy'] is set" do
         before { ENV['http_proxy'] = "http://lower.example.com:80" }
         after { ENV.delete('http_proxy') }
@@ -462,6 +447,55 @@ describe VMC::CLI do
         end
       end
 
+      context "when ENV['https_proxy'] is set" do
+        before { ENV['https_proxy'] = "http://lower.example.com:80" }
+        after { ENV.delete('https_proxy') }
+
+        it "uses the https proxy URI on the enviroenment" do
+          expect(context.client.https_proxy).to eq('http://lower.example.com:80')
+        end
+      end
+
+      context "when ENV['HTTPS_PROXY'] is set" do
+        before { ENV['HTTPS_PROXY'] = "http://upper.example.com:80" }
+        after { ENV.delete('HTTPS_PROXY') }
+
+        it "uses the https proxy URI on the environement" do
+          expect(context.client.https_proxy).to eq('http://upper.example.com:80')
+        end
+      end
+
+      context "with a https proxy URI" do
+        before do
+          ENV['HTTPS_PROXY'] = "http://should.be.overwritten.example.com:80"
+          stub(context).input { {:https_proxy => 'http://arg.example.com:80'} }
+        end
+        after { ENV.delete('HTTPS_PROXY') }
+
+        it "uses the provided https proxy URI" do
+          expect(context.client.https_proxy).to eq('http://arg.example.com:80')
+        end
+      end
+    end
+
+    context "with a v1 cloud controller" do
+      before do
+        stub(context).target_info { { :version => 1} }
+      end
+
+      it "connects using the v1 api" do
+        expect(context.client).to be_a(CFoundry::V1::Client)
+      end
+
+      context "with a proxy user" do
+        before { stub(context).input { {:proxy => 'foo@example.com'} } }
+
+        it "uses the provided client proxy user" do
+          expect(context.client.proxy).to eq('foo@example.com')
+        end
+      end
+
+      it_behaves_like "a client"
     end
 
     context "with a v2 cloud controller" do
@@ -480,6 +514,8 @@ describe VMC::CLI do
           expect {context.client}.to raise_error(VMC::UserError, "User switching not implemented for v2.")
         end
       end
+
+      it_behaves_like "a client"
     end
   end
 end
