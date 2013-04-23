@@ -98,6 +98,27 @@ describe VMC::CLI do
       end
     end
 
+    context "with a CFoundry authentication error when the force flag is set" do
+      let(:action) { proc { raise CFoundry::InvalidAuthToken.new("foo bar") } }
+      let(:asked) { false }
+      let(:inputs) { { :force => true } }
+
+      before do
+        $vmc_asked_auth = asked
+      end
+
+      it "tells the user they are not authenticated" do
+        stub(context).invoke(:login)
+        subject
+        expect(stdout.string).to include "Not authenticated! Try logging in with 'vmc login':"
+      end
+
+      it "does not ask them to log in" do
+        dont_allow(context).invoke(:login)
+        subject
+      end
+    end
+
     context "with an arbitrary exception" do
       let(:action) { proc { raise "foo bar" } }
 

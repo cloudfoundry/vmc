@@ -118,12 +118,16 @@ module VMC
       if !$vmc_asked_auth
         $vmc_asked_auth = true
 
-        line
-        line c("Not authenticated! Try logging in:", :warning)
+        hint = force? ? " with 'vmc login':" : ":"
 
-        # TODO: there's no color here; global flags not being passed
-        # through (mothership bug?)
-        invoke :login
+        line
+        line c("Not authenticated! Try logging in#{hint}", :warning)
+
+        if !force?
+          # TODO: there's no color here; global flags not being passed
+          # through (mothership bug?)
+          invoke :login
+        end
 
         retry
       end
