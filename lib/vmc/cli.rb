@@ -32,6 +32,9 @@ module VMC
     option :http_proxy, :desc => "Connect though an http proxy server", :alias => "--http-proxy",
       :value => :http_proxy
 
+    option :https_proxy, :desc => "Connect though an https proxy server", :alias => "--https-proxy",
+      :value => :https_proxy
+
     option :version, :desc => "Print version number", :alias => "-v",
       :default => false
 
@@ -413,6 +416,7 @@ module VMC
 
       @@client.proxy = input[:proxy]
       @@client.http_proxy = input[:http_proxy] || ENV['HTTP_PROXY'] || ENV['http_proxy'] || nil
+      @@client.https_proxy = input[:https_proxy] || ENV['HTTPS_PROXY'] || ENV['https_proxy'] || nil
       @@client.trace = input[:trace]
 
       uri = URI.parse(target)
